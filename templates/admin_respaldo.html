@@ -225,6 +225,16 @@ function confirmarImport(e) {
     const btn = document.getElementById('btnImport');
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando... (no cierres esta ventana)';
+    
+    // NUEVO: Reactivar el botón y avisar si tarda más de 30 segundos
+    setTimeout(() => {
+        if (btn.disabled) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-upload"></i> Importar Respaldo';
+            alert('La importación está tardando más de lo esperado. Por favor, revisa la consola de Render o intenta de nuevo.');
+        }
+    }, 30000);
+
     return true;
 }
 

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: scpn-app
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
+      - key: SECRET_KEY
+        generateValue: true
+    disk:
+      name: scpn-data
+      mountPath: /data
+      sizeGB: 1

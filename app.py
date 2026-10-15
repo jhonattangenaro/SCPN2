@@ -15,19 +15,8 @@ app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
 
 # ---------- Base de datos ----------
-if os.path.exists('/home'):
-    # PythonAnywhere o Linux con home persistente
-    HOME = os.path.expanduser('~')
-    DATABASE = os.path.join(HOME, 'SCPN', 'elecciones.db') if os.path.exists(os.path.join(HOME, 'SCPN')) else 'elecciones.db'
-elif os.path.exists('/data'):
-    DATABASE = '/data/elecciones.db'
-    if not os.path.exists(DATABASE) and os.path.exists('elecciones.db'):
-        shutil.copy('elecciones.db', DATABASE)
-        print("✅ Base de datos copiada exitosamente al disco persistente en /data")
-elif os.environ.get('RENDER'):
-    DATABASE = '/tmp/elecciones.db'
-else:
-    DATABASE = 'elecciones.db'
+from config import DATABASE
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024  # respaldos de hasta 64 MB
 
 SECRETARIAS_INICIALES = [
     ("DESPACHO DEL GOBERNADOR", 192),
@@ -233,7 +222,7 @@ except Exception as e:
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
+        db = g._database = sqlite3.connect(DATABASE, timeout=30)
         db.row_factory = sqlite3.Row
     return db
 
@@ -640,22 +629,54 @@ def editar_entidad(tipo, eid):
         flash(f'Error: {e}', 'danger')
     return redirect(url_for('admin_entidades'))
 
+TIPOS_ENTIDAD = ('secretarias', 'institutos', 'jubilados')
+
+def _borrar_entidades(db, tipo, ids):
+    """Borra entidades + historial + permisos. Devuelve cuántas se eliminaron."""
+    if tipo not in TIPOS_ENTIDAD or not ids:
+        return 0
+    marks = ','.join('?' * len(ids))
+    db.execute(f"DELETE FROM {tipo}_history WHERE entidad_id IN ({marks})", ids)
+    db.execute("DELETE FROM user_entity_permissions WHERE module=? AND entity_id IN (%s)" % marks, [tipo] + ids)
+    cur = db.execute(f"DELETE FROM {tipo} WHERE id IN ({marks})", ids)
+    return cur.rowcount
+
 @app.route('/admin/entidades/<tipo>/<int:eid>/eliminar', methods=['POST'])
-@admin_required
+@superuser_required
 def eliminar_entidad(tipo, eid):
+    if tipo not in TIPOS_ENTIDAD:
+        flash('Tipo de entidad inválido.', 'danger')
+        return redirect(url_for('admin_entidades'))
     db = get_db()
-    if tipo == 'secretarias':
-        db.execute("DELETE FROM secretarias WHERE id=?", (eid,))
-        db.execute("DELETE FROM secretarias_history WHERE entidad_id=?", (eid,))
-    elif tipo == 'institutos':
-        db.execute("DELETE FROM institutos WHERE id=?", (eid,))
-        db.execute("DELETE FROM institutos_history WHERE entidad_id=?", (eid,))
-    elif tipo == 'jubilados':
-        db.execute("DELETE FROM jubilados WHERE id=?", (eid,))
-        db.execute("DELETE FROM jubilados_history WHERE entidad_id=?", (eid,))
-    db.execute("DELETE FROM user_entity_permissions WHERE module=? AND entity_id=?", (tipo, eid))
+    n = _borrar_entidades(db, tipo, [eid])
     db.commit()
-    flash('Entidad eliminada.', 'success')
+    flash('Entidad eliminada.' if n else 'La entidad no existe.', 'success' if n else 'warning')
+    return redirect(url_for('admin_entidades'))
+
+@app.route('/admin/entidades/<tipo>/eliminar_multiple', methods=['POST'])
+@superuser_required
+def eliminar_entidades_multiple(tipo):
+    if tipo not in TIPOS_ENTIDAD:
+        flash('Tipo de entidad inválido.', 'danger')
+        return redirect(url_for('admin_entidades'))
+    try:
+        ids = sorted({int(x) for x in request.form.getlist('ids')})
+    except ValueError:
+        flash('Selección inválida.', 'danger')
+        return redirect(url_for('admin_entidades'))
+    if not ids:
+        flash('No seleccionaste ninguna entidad.', 'warning')
+        return redirect(url_for('admin_entidades'))
+    db = get_db()
+    try:
+        n = 0
+        for i in range(0, len(ids), 500):          # lotes (límite de variables de SQLite)
+            n += _borrar_entidades(db, tipo, ids[i:i+500])
+        db.commit()
+        flash(f'{n} entidad(es) eliminada(s) de {tipo}.', 'success')
+    except Exception as e:
+        db.rollback()
+        flash(f'Error al eliminar: {e}', 'danger')
     return redirect(url_for('admin_entidades'))
 
 # ---------- Respaldo / Restaurar ----------
@@ -720,128 +741,108 @@ def descargar_respaldo():
 @app.route('/admin/respaldo/importar', methods=['POST'])
 @admin_required
 def importar_respaldo():
-    if 'archivo' not in request.files:
+    archivo = request.files.get('archivo')
+    if not archivo or not archivo.filename:
         flash('No se seleccionó ningún archivo.', 'danger')
         return redirect(url_for('admin_respaldo'))
-
-    archivo = request.files['archivo']
-    if not archivo.filename:
-        flash('Nombre de archivo vacío.', 'danger')
-        return redirect(url_for('admin_respaldo'))
-
     if not archivo.filename.lower().endswith('.json'):
         flash('El archivo debe tener extensión .json', 'danger')
         return redirect(url_for('admin_respaldo'))
 
     modo = request.form.get('modo', 'reemplazar')
+    if modo not in ('reemplazar', 'fusionar'):
+        modo = 'reemplazar'
 
     try:
-        contenido = archivo.read().decode('utf-8')
-        data = json.loads(contenido)
+        data = json.loads(archivo.read().decode('utf-8-sig'))
     except Exception as e:
         flash(f'Error al leer el JSON: {e}', 'danger')
         return redirect(url_for('admin_respaldo'))
 
-    if 'datos' not in data or not isinstance(data['datos'], dict):
+    if not isinstance(data, dict) or not isinstance(data.get('datos'), dict):
         flash('Estructura de respaldo inválida (falta la clave "datos").', 'danger')
         return redirect(url_for('admin_respaldo'))
-
     if not str(data.get('app', '')).startswith('SCPN'):
         flash('Este archivo no parece ser un respaldo de SCPN.', 'danger')
         return redirect(url_for('admin_respaldo'))
 
-    db = get_db()
     tablas_orden = [
         'users', 'secretarias', 'institutos', 'jubilados',
         'user_permissions', 'user_entity_permissions',
         'secretarias_history', 'institutos_history', 'jubilados_history'
     ]
 
-    # Preservar admin actual
+    # Conexión propia, en modo manual: UNA sola transacción para todo el proceso
+    conn = sqlite3.connect(DATABASE, timeout=30, isolation_level=None)
+    conn.row_factory = sqlite3.Row
     admin_actual = None
     if session.get('user_id'):
-        row = db.execute("SELECT * FROM users WHERE id=?", (session['user_id'],)).fetchone()
-        if row:
-            admin_actual = dict(row)
+        row = conn.execute("SELECT * FROM users WHERE id=?", (session['user_id'],)).fetchone()
+        admin_actual = dict(row) if row else None
 
+    totales = {}
     try:
-        if modo == 'reemplazar':
-            db.execute("PRAGMA foreign_keys = OFF")
-            for t in reversed(tablas_orden):
-                try:
-                    db.execute(f"DELETE FROM {t}")
-                except Exception as e:
-                    print(f"⚠ No se pudo borrar {t}: {e}")
-            db.commit()
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("BEGIN IMMEDIATE")
 
-        totales = {}
+        if modo == 'reemplazar':
+            for t in reversed(tablas_orden):
+                conn.execute(f"DELETE FROM {t}")
+
         for tabla in tablas_orden:
             rows = data['datos'].get(tabla, [])
-            if not isinstance(rows, list):
-                totales[tabla] = 0
+            if not isinstance(rows, list) or not rows:
                 continue
 
-            insertados = 0
+            # Solo columnas que existen en la tabla (evita inyección y errores)
+            validas = {r['name'] for r in conn.execute(f"PRAGMA table_info({tabla})")}
+            lotes = {}
             for row in rows:
-                if not isinstance(row, dict) or not row:
+                if not isinstance(row, dict):
                     continue
-                cols = list(row.keys())
-                placeholders = ','.join(['?'] * len(cols))
+                cols = tuple(c for c in row.keys() if c in validas)
+                if cols:
+                    lotes.setdefault(cols, []).append([row[c] for c in cols])
+
+            insertados = 0
+            for cols, valores in lotes.items():
                 col_names = ','.join(f'"{c}"' for c in cols)
-                valores = [row[c] for c in cols]
-
-                try:
-                    if modo == 'reemplazar':
-                        db.execute(f"INSERT INTO {tabla} ({col_names}) VALUES ({placeholders})", valores)
-                        insertados += 1
-                    else:
-                        if 'id' in row:
-                            existe = db.execute(f"SELECT 1 FROM {tabla} WHERE id=?", (row['id'],)).fetchone()
-                            if existe:
-                                set_clause = ','.join(f'"{c}"=?' for c in cols if c != 'id')
-                                update_vals = [row[c] for c in cols if c != 'id'] + [row['id']]
-                                db.execute(f"UPDATE {tabla} SET {set_clause} WHERE id=?", update_vals)
-                                insertados += 1
-                                continue
-                        db.execute(f"INSERT INTO {tabla} ({col_names}) VALUES ({placeholders})", valores)
-                        insertados += 1
-                except sqlite3.IntegrityError as ie:
-                    print(f"⚠ Conflicto en {tabla}: {ie}")
-                except Exception as e:
-                    print(f"⚠ Error insertando en {tabla}: {e}")
-
+                marks = ','.join('?' * len(cols))
+                # INSERT OR REPLACE: en "fusionar" actualiza por id; en "reemplazar" la tabla está vacía
+                verbo = 'INSERT OR REPLACE' if modo == 'fusionar' else 'INSERT OR IGNORE'
+                conn.executemany(f"{verbo} INTO {tabla} ({col_names}) VALUES ({marks})", valores)
+                insertados += len(valores)
             totales[tabla] = insertados
+
+        # Garantizar que el admin que importa siga existiendo
+        if admin_actual:
+            existe = conn.execute("SELECT 1 FROM users WHERE id=?", (admin_actual['id'],)).fetchone()
+            if not existe:
+                conn.execute("DELETE FROM users WHERE username=?", (admin_actual['username'],))
+                conn.execute(
+                    "INSERT INTO users (id, username, password, full_name, is_superuser, is_full_access, is_active, created_at) "
+                    "VALUES (?,?,?,?,?,?,1,?)",
+                    (admin_actual['id'], admin_actual['username'], admin_actual['password'],
+                     admin_actual['full_name'], admin_actual['is_superuser'],
+                     admin_actual.get('is_full_access', 0), admin_actual['created_at'])
+                )
 
         # Reajustar AUTOINCREMENT
         for tabla in tablas_orden:
-            try:
-                maxid = db.execute(f"SELECT COALESCE(MAX(id),0) m FROM {tabla}").fetchone()['m']
-                db.execute("UPDATE sqlite_sequence SET seq=? WHERE name=?", (maxid, tabla))
-            except Exception:
-                pass
+            maxid = conn.execute(f"SELECT COALESCE(MAX(id),0) FROM {tabla}").fetchone()[0]
+            conn.execute("UPDATE sqlite_sequence SET seq=? WHERE name=?", (maxid, tabla))
 
-        db.execute("PRAGMA foreign_keys = ON")
-        db.commit()
-
-        # Reinsertar admin si fue borrado
-        if modo == 'reemplazar' and admin_actual:
-            existe = db.execute("SELECT id FROM users WHERE id=?", (admin_actual['id'],)).fetchone()
-            if not existe:
-                db.execute(
-                    "INSERT INTO users (id, username, password, full_name, is_superuser, is_full_access, is_active, created_at) "
-                    "VALUES (?,?,?,?,1,?,1,?)",
-                    (admin_actual['id'], admin_actual['username'], admin_actual['password'],
-                     admin_actual['full_name'], admin_actual.get('is_full_access', 0),
-                     admin_actual['created_at'])
-                )
-                db.commit()
-
-        resumen = ' · '.join([f"{k}: {v}" for k, v in totales.items() if v])
+        conn.execute("COMMIT")
+        resumen = ' · '.join(f"{k}: {v}" for k, v in totales.items() if v)
         flash(f'✅ Respaldo importado correctamente (modo: {modo}). {resumen}', 'success')
-
     except Exception as e:
-        db.rollback()
-        flash(f'❌ Error al importar el respaldo: {e}', 'danger')
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        flash(f'❌ Error al importar el respaldo (no se modificó nada): {e}', 'danger')
+    finally:
+        conn.close()
 
     return redirect(url_for('admin_respaldo'))
 

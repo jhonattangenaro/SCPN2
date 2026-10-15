@@ -1,0 +1,121 @@
+<!-- templates/empleados_geb.html -->
+{% extends "base.html" %}
+{% block title %}Empleados GEB · Consulta Popular 2026{% endblock %}
+
+{% block head_extra %}
+<style>
+    .pg-title     { text-align:center; margin-bottom:1.5rem; }
+    .pg-title h1  { font-size:1.7rem; font-weight:900; color:var(--azul); text-transform:uppercase; }
+    .pg-title p   { color:var(--rojo); font-weight:600; font-size:.95rem; margin-top:.25rem; }
+    .accent-line  { height:4px; width:80px; border-radius:2px;
+                    background:linear-gradient(90deg,var(--rojo),var(--amarillo),var(--azul));
+                    margin:.5rem auto 0; }
+
+    .emp-table    { width:100%; border-collapse:collapse; font-size:.88rem; }
+    .emp-table th,
+    .emp-table td { border:1px solid #e5e7eb; padding:.65rem .75rem; }
+    .emp-table th { background:var(--azul); color:#fff; font-weight:700; text-align:left; }
+    .emp-table tr:nth-child(even) td { background:#f4f6fb; }
+    .emp-table tfoot td { background:var(--amarillo); font-weight:900; color:#222; font-size:.95rem; }
+
+    .num-col  { color:#aaa; font-size:.8rem; width:2rem; text-align:center; }
+
+    .edit-input {
+        width:90px; padding:.3rem .5rem;
+        border:2px solid #ccc; border-radius:.35rem;
+        text-align:center; font-size:.88rem;
+        transition:border-color .2s;
+    }
+    .edit-input:focus { outline:none; border-color:var(--azul); }
+
+    .btn-save {
+        background:var(--azul); color:#fff;
+        padding:.35rem .75rem; border:none; border-radius:.35rem;
+        font-size:.82rem; font-weight:700; cursor:pointer;
+        margin-left:.4rem; transition:background .2s, transform .15s;
+    }
+    .btn-save:hover { background:#163f80; transform:translateY(-1px); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pg-title">
+    <h1>Total de Empleados GEB</h1>
+    <p>Edita la cantidad de empleados por secretaría</p>
+    <div class="accent-line"></div>
+</div>
+
+<div class="card">
+    <div class="overflow-x-auto">
+        <table class="emp-table">
+            <thead>
+                <tr>
+                    <th class="num-col">#</th>
+                    <th>Secretaría</th>
+                    <th style="text-align:center;">Empleados</th>
+                    <th style="text-align:center;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for name, data in secretarias_data.items() %}
+                <tr>
+                    <td class="num-col">{{ loop.index }}</td>
+                    <td>{{ name }}</td>
+                    <td style="text-align:center;">
+                        <input class="edit-input" type="number" min="0" value="{{ data.empleados }}">
+                    </td>
+                    <td style="text-align:center;">
+                        <button class="btn-save"
+                                onclick="saveEmp({{ name | tojson }}, this)">
+                            Guardar
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="2" style="text-align:right;padding-right:1rem;">
+                        TOTAL GENERAL
+                    </td>
+                    <td id="total-general" style="text-align:center;">{{ total_general }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div id="msg-box" class="message-box"></div>
+
+    <div style="text-align:center;">
+        <a href="/" class="btn-back">← Volver al Menú Principal</a>
+    </div>
+</div>
+
+<script>
+async function saveEmp(name, btn) {
+    const input = btn.closest('tr').querySelector('.edit-input');
+    const val   = parseInt(input.value);
+    if (isNaN(val) || val < 0) { showMsg("Valor inválido.", "error"); return; }
+
+    const r   = await fetch(`/update_empleados/${encodeURIComponent(name)}`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: `empleados=${val}`
+    });
+    const res = await r.json();
+    if (res.status === "success") {
+        document.getElementById('total-general').textContent = res.total_general;
+        showMsg(res.message, "success");
+    } else showMsg(res.message, "error");
+}
+
+function showMsg(msg, type) {
+    const b = document.getElementById('msg-box');
+    b.textContent = msg;
+    b.className   = `message-box ${type}`;
+    b.style.display = 'block';
+    setTimeout(() => b.style.display = 'none', 5000);
+}
+</script>
+{% endblock %}

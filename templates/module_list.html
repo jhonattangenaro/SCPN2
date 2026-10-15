@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} - Consulta Popular 2026{% endblock %}
+{% block page_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+{% set total_emp  = entidades | sum(attribute=campo_total) %}
+{% set total_vot  = entidades | sum(attribute='votos_reportados') %}
+{% set pct_global = ((total_vot / total_emp * 100) if total_emp > 0 else 0) | round(1) %}
+
+<!-- Summary bar -->
+<div class="row g-2 g-md-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card text-center p-2 p-md-3">
+            <div style="font-size:1.3rem;font-weight:800;color:var(--rojo)" class="d-md-none">{{ total_emp | int }}</div>
+            <div style="font-size:1.8rem;font-weight:800;color:var(--rojo)" class="d-none d-md-block">{{ total_emp | int }}</div>
+            <div style="font-size:.7rem;color:var(--gris-oscuro)" class="d-md-none">Total</div>
+            <div style="font-size:.78rem;color:var(--gris-oscuro)" class="d-none d-md-block">Total Registrados</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card text-center p-2 p-md-3">
+            <div style="font-size:1.3rem;font-weight:800;color:#16a34a" class="d-md-none">{{ total_vot | int }}</div>
+            <div style="font-size:1.8rem;font-weight:800;color:#16a34a" class="d-none d-md-block">{{ total_vot | int }}</div>
+            <div style="font-size:.7rem;color:var(--gris-oscuro)" class="d-md-none">Votaron</div>
+            <div style="font-size:.78rem;color:var(--gris-oscuro)" class="d-none d-md-block">Votaron</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card text-center p-2 p-md-3">
+            <div style="font-size:1.3rem;font-weight:800;color:var(--rojo)" class="d-md-none">{{ (total_emp - total_vot) | int }}</div>
+            <div style="font-size:1.8rem;font-weight:800;color:var(--rojo)" class="d-none d-md-block">{{ (total_emp - total_vot) | int }}</div>
+            <div style="font-size:.7rem;color:var(--gris-oscuro)" class="d-md-none">Faltan</div>
+            <div style="font-size:.78rem;color:var(--gris-oscuro)" class="d-none d-md-block">Faltan</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card text-center p-2 p-md-3">
+            <div style="font-size:1.3rem;font-weight:800;color:var(--amarillo)" class="d-md-none">{{ pct_global }}%</div>
+            <div style="font-size:1.8rem;font-weight:800;color:var(--amarillo)" class="d-none d-md-block">{{ pct_global }}%</div>
+            <div style="font-size:.7rem;color:var(--gris-oscuro)" class="d-md-none">Participación</div>
+            <div style="font-size:.78rem;color:var(--gris-oscuro)" class="d-none d-md-block">Participación</div>
+            <div class="progress-bar-custom mt-2"><div class="progress-fill" style="width:{{ pct_global }}%"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Search -->
+<div class="d-flex gap-2 mb-3">
+    <input type="text" id="searchBox" class="form-control" placeholder="🔍 Buscar {{ titulo | lower }}..." style="max-width:340px;border-radius:10px">
+    <span class="badge align-self-center" style="background:var(--rojo);color:#fff;font-size:.85rem;padding:8px 14px">
+        {{ entidades | length }} registros
+    </span>
+</div>
+
+<!-- VISTA PARA MÓVIL: Tarjetas -->
+<div class="d-block d-md-none">
+    <div class="row g-2">
+        {% for e in entidades %}
+        {% set total_e = e[campo_total] %}
+        {% set pct = ((e.votos_reportados / total_e * 100) if total_e > 0 else 0) | round(1) %}
+        <div class="col-12">
+            <div class="stat-card p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong style="font-size:0.9rem">{{ e.name[:40] }}{% if e.name|length > 40 %}…{% endif %}</strong>
+                    <span class="badge" style="background:{{ '#16a34a' if pct >= 80 else ('#F5A623' if pct >= 50 else '#D7263D') }}">
+                        {{ pct }}%
+                    </span>
+                </div>
+                <div class="row text-center g-2">
+                    <div class="col-4">
+                        <small class="text-muted">Total</small>
+                        <div style="font-weight:600">{{ total_e | int }}</div>
+                    </div>
+                    <div class="col-4">
+                        <small class="text-muted">Votaron</small>
+                        <div style="color:#16a34a; font-weight:600">{{ e.votos_reportados | int }}</div>
+                    </div>
+                    <div class="col-4">
+                        <small class="text-muted">Faltan</small>
+                        <div style="color:#D7263D; font-weight:600">{{ (total_e - e.votos_reportados) | int }}</div>
+                    </div>
+                </div>
+                <a href="/{{ modulo }}/{{ e.id }}" class="btn btn-sm btn-rojo w-100 mt-2">
+                    <i class="fas fa-eye me-1"></i> Ver detalles
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="stat-card text-center py-5">
+                <i class="fas fa-inbox fa-3x mb-3 text-muted"></i>
+                <p class="text-muted">No hay registros en este módulo.</p>
+                {% if session.is_superuser %}
+                <a href="{{ url_for('admin_entidades') }}" class="btn btn-sm btn-rojo mt-2">+ Agregar entidades</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- VISTA PARA DESKTOP: Tabla -->
+<div class="d-none d-md-block">
+    <div class="stat-card p-0 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-custom table-hover mb-0" id="mainTable">
+                <thead>
+                    <tr>
+                        <th style="width:40px">#</th>
+                        <th>{{ titulo[:-1] if titulo.endswith('s') else titulo }}</th>
+                        <th class="text-center">Total</th>
+                        <th class="text-center">Votaron</th>
+                        <th class="text-center">Faltan</th>
+                        <th style="width:150px">Participación</th>
+                        <th class="text-center" style="width:80px">Detalle</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for e in entidades %}
+                {% set total_e = e[campo_total] %}
+                {% set pct = ((e.votos_reportados / total_e * 100) if total_e > 0 else 0) | round(1) %}
+                {% set color = '#16a34a' if pct >= 80 else ('#F5A623' if pct >= 50 else '#D7263D') %}
+                <tr>
+                    <td class="text-muted" style="font-size:.8rem">{{ loop.index }}</td>
+                    <td>
+                        <span style="font-weight:600;font-size:.88rem">{{ e.name }}</span>
+                    </td>
+                    <td class="text-center fw-bold">{{ total_e | int }}</td>
+                    <td class="text-center" style="color:#16a34a;font-weight:600">{{ e.votos_reportados | int }}</td>
+                    <td class="text-center" style="color:#D7263D;font-weight:600">{{ (total_e - e.votos_reportados) | int }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div style="flex:1;background:#e5e7eb;border-radius:4px;height:8px">
+                                <div style="width:{{ pct }}%;background:{{ color }};height:100%;border-radius:4px;transition:width .6s"></div>
+                            </div>
+                            <span style="font-size:.78rem;font-weight:700;color:{{ color }};min-width:40px">{{ pct }}%</span>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <a href="/{{ modulo }}/{{ e.id }}" class="btn btn-sm" style="background:#D7263D;color:#fff;border-radius:8px;padding:4px 12px;font-size:.78rem">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('searchBox').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    
+    // Filtrar tabla en desktop
+    document.querySelectorAll('#mainTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+    
+    // Filtrar tarjetas en móvil
+    document.querySelectorAll('.d-block.d-md-none .stat-card').forEach(card => {
+        card.style.display = card.textContent.toLowerCase().includes(q) ? 'block' : 'none';
+    });
+});
+</script>
+{% endblock %}

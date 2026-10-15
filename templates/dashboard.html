@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Consulta Popular 2026{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+{% set perms = session.get('permissions', {}) %}
+{% set emods = session.get('entity_modules', []) %}
+
+{% set can_sec = session.is_superuser or session.is_full_access or perms.get('secretarias', {}).get('can_view') or 'secretarias' in emods %}
+{% set can_ins = session.is_superuser or session.is_full_access or perms.get('institutos', {}).get('can_view') or 'institutos' in emods %}
+{% set can_grafico = session.is_superuser or session.is_full_access or perms.get('grafico_general', {}).get('can_view') %}
+
+{% set total_general = 0 %}
+{% set votos_general = 0 %}
+
+{% if can_sec %}
+    {% set total_general = total_general + stats.secretarias.total %}
+    {% set votos_general = votos_general + stats.secretarias.votos %}
+{% endif %}
+{% if can_ins %}
+    {% set total_general = total_general + stats.institutos.total %}
+    {% set votos_general = votos_general + stats.institutos.votos %}
+{% endif %}
+
+{% set pct_gen = ((votos_general / total_general * 100) if total_general > 0 else 0) | round(1) %}
+
+<!-- Banner -->
+<div style="background:linear-gradient(135deg, #0a2b4f, var(--azul-principal));border-radius:18px;padding:20px 16px;margin-bottom:20px;color:#fff;"
+     class="d-flex flex-column flex-md-row align-items-center text-center text-md-start justify-content-between">
+    <div class="mb-3 mb-md-0">
+        <h4 style="font-weight:800;margin:0;font-size:1.2rem;" class="d-md-none">¡AQUÍ MANDA EL PUEBLO!</h4>
+        <h4 style="font-weight:800;margin:0;font-size:1.5rem;" class="d-none d-md-block">¡AQUÍ MANDA EL PUEBLO!</h4>
+        <p style="color:rgba(255,255,255,.8);margin:4px 0 0;font-size:.8rem;">Consulta Popular Nacional 2026 · Gobernación del Estado Bolívar</p>
+    </div>
+    <div class="text-md-end">
+        <div id="pct-general-header" style="font-size:2rem;font-weight:900;color:var(--amarillo);line-height:1">{{ pct_gen }}%</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.9)">Participación General</div>
+        <div style="background:rgba(255,255,255,.2);border-radius:6px;height:8px;margin-top:8px;min-width:120px">
+            <div id="progress-general" style="background:var(--amarillo);height:100%;border-radius:6px;width:{{ pct_gen }}%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Tarjetas -->
+<div class="row g-2 g-md-4 mb-4">
+    {% if can_sec %}
+    <div class="col-6 col-md-6">
+        <div class="stat-card p-2 p-md-3" onclick="window.location='/secretarias'" style="cursor:pointer">
+            <div class="icon" style="width:36px;height:36px;font-size:1rem"><i class="fas fa-building-columns"></i></div>
+            {% set pct_sec = ((stats.secretarias.votos / stats.secretarias.total * 100) if stats.secretarias.total > 0 else 0) | round(1) %}
+            <div id="pct-secretarias" class="value" style="font-size:clamp(1.3rem, 4vw, 1.9rem);">{{ pct_sec }}%</div>
+            <div class="label" style="font-size:clamp(0.7rem, 2vw, 0.8rem); font-weight:600;">Secretarías</div>
+            <div class="d-flex justify-content-between mt-1" style="font-size:clamp(0.65rem, 1.8vw, 0.75rem);color:var(--text-secondary)">
+                <span><i class="fas fa-check-circle text-success me-1"></i><span id="votos-secretarias">{{ stats.secretarias.votos | int }}</span></span>
+                <span><i class="fas fa-clock text-danger me-1"></i><span id="faltan-secretarias">{{ (stats.secretarias.total - stats.secretarias.votos) | int }}</span></span>
+            </div>
+            <div class="progress-bar-custom mt-2">
+                <div id="progress-secretarias" class="progress-fill" style="width:{{ pct_sec }}%"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if can_ins %}
+    <div class="col-6 col-md-6">
+        <div class="stat-card p-2 p-md-3" onclick="window.location='/institutos'" style="cursor:pointer">
+            <div class="icon" style="width:36px;height:36px;font-size:1rem"><i class="fas fa-university"></i></div>
+            {% set pct_ins = ((stats.institutos.votos / stats.institutos.total * 100) if stats.institutos.total > 0 else 0) | round(1) %}
+            <div id="pct-institutos" class="value" style="font-size:clamp(1.3rem, 4vw, 1.9rem);">{{ pct_ins }}%</div>
+            <div class="label" style="font-size:clamp(0.7rem, 2vw, 0.8rem); font-weight:600;">Institutos</div>
+            <div class="d-flex justify-content-between mt-1" style="font-size:clamp(0.65rem, 1.8vw, 0.75rem);color:var(--text-secondary)">
+                <span><i class="fas fa-check-circle text-success me-1"></i><span id="votos-institutos">{{ stats.institutos.votos | int }}</span></span>
+                <span><i class="fas fa-clock text-danger me-1"></i><span id="faltan-institutos">{{ (stats.institutos.total - stats.institutos.votos) | int }}</span></span>
+            </div>
+            <div class="progress-bar-custom mt-2">
+                <div id="progress-institutos" class="progress-fill" style="width:{{ pct_ins }}%"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if can_grafico and (can_sec or can_ins) %}
+<div class="row g-4">
+    <div class="col-12 col-lg-8">
+        <div class="stat-card">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                <h6 style="color:var(--azul-principal);font-weight:700;margin:0">
+                    <i class="fas fa-chart-bar me-2"></i>Participación por Módulo
+                </h6>
+                <div class="d-flex flex-wrap gap-1 align-items-center">
+                    <div class="btn-group btn-group-sm">
+                        <button id="btnModulos" onclick="setBarView('modulos')" class="btn btn-sm fw-bold" style="background:var(--azul-principal);color:#fff;border:none;border-radius:8px 0 0 8px;padding:5px 12px;font-size:.75rem">
+                            <i class="fas fa-layer-group me-1"></i>Módulos
+                        </button>
+                        {% if can_sec %}
+                        <button id="btnSecretarias" onclick="setBarView('secretarias')" class="btn btn-sm fw-bold" style="background:#e9ecef;color:#555;border:none;padding:5px 12px;font-size:.75rem">
+                            <i class="fas fa-building-columns me-1"></i>Sec.
+                        </button>
+                        {% endif %}
+                        {% if can_ins %}
+                        <button id="btnInstitutos" onclick="setBarView('institutos')" class="btn btn-sm fw-bold" style="background:#e9ecef;color:#555;border:none;padding:5px 12px;font-size:.75rem">
+                            <i class="fas fa-university me-1"></i>Inst.
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button id="btnTipoBar" onclick="setChartType('bar')" class="btn btn-sm fw-bold" style="background:var(--azul-principal);color:#fff;border:none;border-radius:8px 0 0 8px;padding:5px 12px;font-size:.75rem">
+                            <i class="fas fa-chart-bar me-1"></i>Barra
+                        </button>
+                        <button id="btnTipoPie" onclick="setChartType('pie')" class="btn btn-sm fw-bold" style="background:#e9ecef;color:#555;border:none;border-radius:0 8px 8px 0;padding:5px 12px;font-size:.75rem">
+                            <i class="fas fa-chart-pie me-1"></i>Torta
+                        </button>
+                    </div>
+                    <button id="btnRefreshDash" onclick="refrescarDashboard()" class="btn btn-sm fw-bold" style="background:var(--amarillo);color:#212529;border:none;border-radius:8px;padding:5px 12px;font-size:.75rem">
+                        <i class="fas fa-sync-alt me-1"></i>Actualizar
+                    </button>
+                </div>
+            </div>
+            <div id="barChartLoading" style="display:none;text-align:center;padding:20px;color:#999">
+                <i class="fas fa-spinner fa-spin me-2"></i>Cargando datos...
+            </div>
+            <div style="position:relative;height:320px">
+                <canvas id="barChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="stat-card">
+            <h6 style="color:var(--azul-principal);font-weight:700;margin-bottom:16px">
+                <i class="fas fa-chart-pie me-2"></i>Total General
+            </h6>
+            <div style="position:relative;height:200px;display:flex;align-items:center;justify-content:center">
+                <canvas id="donutChart"></canvas>
+                <div style="position:absolute;text-align:center;pointer-events:none">
+                    <div id="pct-donut-center" style="font-size:1.8rem;font-weight:900;color:var(--azul-principal);line-height:1">{{ pct_gen }}%</div>
+                    <div style="font-size:.68rem;color:var(--text-secondary)">participación</div>
+                </div>
+            </div>
+            <div class="row g-2 mt-2 text-center">
+                <div class="col-6">
+                    <div style="background:#f0fdf4;border-radius:8px;padding:8px">
+                        <div id="donut-votaron" style="font-size:1.1rem;font-weight:800;color:#16a34a">{{ votos_general | int }}</div>
+                        <div style="font-size:.68rem;color:var(--text-secondary)">Votaron</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div style="background:#fff3f4;border-radius:8px;padding:8px">
+                        <div id="donut-faltan" style="font-size:1.1rem;font-weight:800;color:#D7263D">{{ (total_general - votos_general) | int }}</div>
+                        <div style="font-size:.68rem;color:var(--text-secondary)">Faltan</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<span id="total-general-data" style="display:none;">{{ total_general }}</span>
+<span id="votos-general-data" style="display:none;">{{ votos_general }}</span>
+{% endblock %}
+
+{% block extra_js %}
+{% if can_grafico and (can_sec or can_ins) %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+let barChart, donutChart;
+let currentBarView = 'modulos';
+let currentChartType = 'bar';
+
+const moduleLabels = [];
+const moduleTotales = [];
+const moduleVotos   = [];
+
+{% if can_sec %}
+moduleLabels.push('Secretarías');
+moduleTotales.push({{ stats.secretarias.total }});
+moduleVotos.push({{ stats.secretarias.votos }});
+{% endif %}
+{% if can_ins %}
+moduleLabels.push('Institutos');
+moduleTotales.push({{ stats.institutos.total }});
+moduleVotos.push({{ stats.institutos.votos }});
+{% endif %}
+
+function getBarColors() {
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    return {
+        azul: isDark ? '#3b82f6' : '#0B3B6E',
+        rojo: '#D7263D',
+        grisClaro: isDark ? '#444' : '#e9ecef'
+    };
+}
+
+const PIE_PALETTE = ['#0B3B6E', '#1B5E9E', '#F5A623', '#16a34a', '#8b5cf6', '#D7263D', '#0891b2', '#ea580c', '#65a30d', '#db2777'];
+
+function buildBarChart(labels, votos, totales, isHorizontal) {
+    if (barChart) barChart.destroy();
+    const ctx = document.getElementById('barChart').getContext('2d');
+    const faltan = totales.map((t, i) => t - votos[i]);
+    const colors = getBarColors();
+
+    if (currentChartType === 'pie') {
+        barChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{
+                    data: votos,
+                    backgroundColor: labels.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]),
+                    borderWidth: 2, borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                cutout: '45%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: getComputedStyle(document.body).getPropertyValue('--text-primary'), boxWidth: 12, font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: (item) => {
+                                const t = totales[item.dataIndex];
+                                const v = item.parsed;
+                                const p = t > 0 ? (v / t * 100).toFixed(1) : '0.0';
+                                return `${item.label}: ${v} de ${t} (${p}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        return;
+    }
+
+    const isMany = labels.length > 8;
+    barChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Votaron', data: votos,  backgroundColor: colors.azul,  borderRadius: 6, borderSkipped: false },
+                { label: 'Faltan',  data: faltan, backgroundColor: colors.rojo, borderRadius: 6, borderSkipped: false }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            indexAxis: (isHorizontal || isMany) ? 'y' : 'x',
+            plugins: {
+                legend: { position: 'bottom', labels: { color: getComputedStyle(document.body).getPropertyValue('--text-primary'), boxWidth: 12, font: { size: 11 } } },
+                tooltip: {
+                    callbacks: {
+                        afterBody: (items) => {
+                            const t = items[0].parsed.x !== undefined ? (items[0].parsed.x + (items[1]?.parsed.x || 0)) : (items[0].parsed.y + (items[1]?.parsed.y || 0));
+                            if (t > 0) {
+                                const v = items[0].parsed.x !== undefined ? items[0].parsed.x : items[0].parsed.y;
+                                return ['─────────', `Participación: ${(v/t*100).toFixed(1)}%`];
+                            }
+                            return [];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { stacked: true, grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid-color') }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--text-primary'), font: { size: isMany ? 9 : 10 }, maxRotation: isMany ? 0 : 30 } },
+                y: { stacked: true, grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid-color') }, ticks: { color: getComputedStyle(document.body).getPropertyValue('--text-primary'), font: { size: isMany ? 9 : 10 } } }
+            }
+        }
+    });
+}
+
+function buildDonut(v, f) {
+    if (donutChart) donutChart.destroy();
+    const ctx = document.getElementById('donutChart').getContext('2d');
+    const colors = getBarColors();
+    donutChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels: ['Votaron', 'Faltan'], datasets: [{ data: [v, f], backgroundColor: [colors.azul, colors.rojo], borderWidth: 0, hoverOffset: 6 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { position: 'bottom', labels: { color: getComputedStyle(document.body).getPropertyValue('--text-primary'), boxWidth: 12, font: { size: 11 } } } } }
+    });
+}
+
+function setChartType(type) {
+    currentChartType = type;
+    const btnBar = document.getElementById('btnTipoBar');
+    const btnPie = document.getElementById('btnTipoPie');
+    if (type === 'bar') {
+        btnBar.style.background = 'var(--azul-principal)'; btnBar.style.color = '#fff';
+        btnPie.style.background = '#e9ecef'; btnPie.style.color = '#555';
+    } else {
+        btnPie.style.background = 'var(--azul-principal)'; btnPie.style.color = '#fff';
+        btnBar.style.background = '#e9ecef'; btnBar.style.color = '#555';
+    }
+    setBarView(currentBarView);
+}
+
+function setBarView(view) {
+    currentBarView = view;
+    ['btnModulos', 'btnSecretarias', 'btnInstitutos'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.style.background = '#e9ecef'; el.style.color = '#555'; }
+    });
+    const activeBtn = document.getElementById('btn' + view.charAt(0).toUpperCase() + view.slice(1));
+    if (activeBtn) { activeBtn.style.background = 'var(--azul-principal)'; activeBtn.style.color = '#fff'; }
+
+    if (view === 'modulos') {
+        buildBarChart(moduleLabels, moduleVotos, moduleTotales, false);
+        return;
+    }
+    document.getElementById('barChartLoading').style.display = 'block';
+    fetch('/api/stats/entidades?modulo=' + view)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('barChartLoading').style.display = 'none';
+            const labels  = data.map(e => e.name.length > 25 ? e.name.substring(0, 25) + '…' : e.name);
+            const votos   = data.map(e => e.votos);
+            const totales = data.map(e => e.total);
+            buildBarChart(labels, votos, totales, true);
+        })
+        .catch(() => { document.getElementById('barChartLoading').style.display = 'none'; });
+}
+
+// 🔄 REFRESCO MANUAL — solo se ejecuta cuando el usuario hace clic
+function refrescarDashboard() {
+    const btn = document.getElementById('btnRefreshDash');
+    const icon = btn.querySelector('i');
+    icon.classList.remove('fa-sync-alt');
+    icon.classList.add('fa-spinner', 'fa-spin');
+    btn.disabled = true;
+
+    fetch('/api/stats')
+        .then(r => r.json())
+        .then(data => {
+            let totalGen = 0, votosGen = 0;
+            {% if can_sec %}
+            totalGen += data.secretarias.total; votosGen += data.secretarias.votos;
+            const pctSec = data.secretarias.total > 0 ? (data.secretarias.votos/data.secretarias.total*100).toFixed(1) : 0;
+            document.getElementById('pct-secretarias').textContent  = pctSec + '%';
+            document.getElementById('votos-secretarias').textContent = data.secretarias.votos;
+            document.getElementById('faltan-secretarias').textContent = data.secretarias.total - data.secretarias.votos;
+            document.getElementById('progress-secretarias').style.width = pctSec + '%';
+            {% endif %}
+            {% if can_ins %}
+            totalGen += data.institutos.total; votosGen += data.institutos.votos;
+            const pctIns = data.institutos.total > 0 ? (data.institutos.votos/data.institutos.total*100).toFixed(1) : 0;
+            document.getElementById('pct-institutos').textContent  = pctIns + '%';
+            document.getElementById('votos-institutos').textContent = data.institutos.votos;
+            document.getElementById('faltan-institutos').textContent = data.institutos.total - data.institutos.votos;
+            document.getElementById('progress-institutos').style.width = pctIns + '%';
+            {% endif %}
+
+            const pctGen = totalGen > 0 ? (votosGen/totalGen*100).toFixed(1) : 0;
+            document.getElementById('pct-general-header').textContent = pctGen + '%';
+            document.getElementById('progress-general').style.width   = pctGen + '%';
+            document.getElementById('pct-donut-center').textContent   = pctGen + '%';
+            document.getElementById('donut-votaron').textContent = votosGen;
+            document.getElementById('donut-faltan').textContent  = totalGen - votosGen;
+
+            // Actualizar datos del módulo en memoria
+            const newVotos = []; const newTotales = [];
+            {% if can_sec %} newVotos.push(data.secretarias.votos); newTotales.push(data.secretarias.total); {% endif %}
+            {% if can_ins %} newVotos.push(data.institutos.votos);  newTotales.push(data.institutos.total);  {% endif %}
+
+            // Reconstruir gráficos con los nuevos datos
+            if (donutChart) { donutChart.data.datasets[0].data = [votosGen, totalGen - votosGen]; donutChart.update(); }
+
+            if (currentBarView === 'modulos') {
+                // Actualizar arrays module* con nuevos valores
+                moduleVotos.length = 0; moduleTotales.length = 0;
+                {% if can_sec %} moduleVotos.push(data.secretarias.votos); moduleTotales.push(data.secretarias.total); {% endif %}
+                {% if can_ins %} moduleVotos.push(data.institutos.votos);  moduleTotales.push(data.institutos.total);  {% endif %}
+                buildBarChart(moduleLabels, moduleVotos, moduleTotales, false);
+            } else {
+                setBarView(currentBarView);
+            }
+        })
+        .catch(e => console.error('Error actualizando:', e))
+        .finally(() => {
+            setTimeout(() => {
+                icon.classList.remove('fa-spinner', 'fa-spin');
+                icon.classList.add('fa-sync-alt');
+                btn.disabled = false;
+            }, 400);
+        });
+}
+
+function rebuildAllCharts() {
+    if (currentBarView === 'modulos') {
+        buildBarChart(moduleLabels, moduleVotos, moduleTotales, false);
+    } else {
+        setBarView(currentBarView);
+    }
+    const totalGen = parseInt(document.getElementById('total-general-data').textContent);
+    const votosGen = parseInt(document.getElementById('votos-general-data').textContent);
+    buildDonut(votosGen, totalGen - votosGen);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const totalGen = parseInt(document.getElementById('total-general-data').textContent);
+    const votosGen = parseInt(document.getElementById('votos-general-data').textContent);
+    buildBarChart(moduleLabels, moduleVotos, moduleTotales, false);
+    buildDonut(votosGen, totalGen - votosGen);
+    // ⛔ SIN setInterval — el usuario refresca manualmente con el botón
+    window.addEventListener('themeChanged', rebuildAllCharts);
+});
+</script>
+{% endif %}
+{% endblock %}

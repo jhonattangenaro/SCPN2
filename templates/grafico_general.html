@@ -1,0 +1,1269 @@
+{% extends "base.html" %}
+{% block title %}Gráfico General - Consulta Popular 2026{% endblock %}
+{% block page_title %}Gráfico General{% endblock %}
+
+{% block extra_css %}
+<style>
+.chart-card {
+    background: var(--card-bg); border-radius: 14px; padding: 20px;
+    box-shadow: 0 4px 12px var(--border-color); margin-bottom: 24px;
+    transition: box-shadow .2s;
+}
+.chart-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+}
+.chart-title { color: var(--azul-principal); font-weight: 700; font-size: .95rem; margin: 0; }
+
+/* ── Barra de control superior ── */
+.control-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; flex-wrap: wrap;
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 12px var(--border-color);
+    margin-bottom: 16px;
+}
+.refresh-status {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    font-size: .82rem; color: var(--text-secondary);
+}
+.status-dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    background: #16a34a; margin-right: 6px;
+    box-shadow: 0 0 0 0 rgba(22,163,74,.5);
+    animation: pulse 2s infinite;
+}
+.status-dot.paused { background: #d97706; animation: none; }
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(22,163,74,.5); }
+    70% { box-shadow: 0 0 0 8px rgba(22,163,74,0); }
+    100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
+}
+.auto-toggle-wrap {
+    display: inline-flex; align-items: center; gap: 6px;
+    user-select: none;
+}
+.auto-toggle-wrap select {
+    font-size: .75rem; padding: 3px 6px; border-radius: 6px;
+    border: 1px solid var(--border-color); background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+.btn-refresh, .btn-action {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 14px; border-radius: 8px;
+    font-size: .78rem; font-weight: 700; cursor: pointer;
+    border: none; background: var(--amarillo); color: #212529;
+    transition: opacity .15s;
+}
+.btn-refresh:hover, .btn-action:hover { opacity: .85; }
+.btn-refresh:disabled { opacity: .5; cursor: wait; }
+
+/* ── Pestañas principales ── */
+.tabs-main {
+    display: inline-flex; border-radius: 10px; overflow: hidden;
+    border: 2px solid var(--azul-principal);
+    background: var(--bg-secondary);
+}
+.tabs-main button {
+    border: none; padding: 8px 20px; font-size: .82rem; font-weight: 700;
+    cursor: pointer; background: transparent; color: var(--azul-principal);
+    transition: all .15s;
+    border-right: 1px solid rgba(11,59,110,.15);
+}
+.tabs-main button:last-child { border-right: none; }
+.tabs-main button.active {
+    background: var(--azul-principal); color: #fff;
+}
+.tabs-main button:hover:not(.active) {
+    background: rgba(11,59,110,.06);
+}
+
+/* ── Toggle barra/torta ── */
+.toggle-group { display: inline-flex; border-radius: 8px; overflow: hidden; }
+.toggle-group button {
+    border: none; padding: 6px 14px; font-size: .75rem; font-weight: 700;
+    cursor: pointer; background: #e9ecef; color: #555; transition: all .15s;
+}
+.toggle-group button.active { background: var(--azul-principal); color: #fff; }
+
+/* ── Botones de export ── */
+.export-btns { display: flex; gap: 6px; align-items: center; }
+.btn-export {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 13px; border-radius: 8px;
+    font-size: .75rem; font-weight: 700; cursor: pointer;
+    border: none; transition: opacity .15s;
+}
+.btn-pdf  { background: var(--azul-principal); color: #fff; }
+.btn-img  { background: var(--azul-secundario); color: #fff; }
+.btn-max  { background: #16a34a; color: #fff; }
+.btn-pdf:hover, .btn-img:hover, .btn-max:hover { opacity: .85; }
+
+/* ── Área del gráfico principal ── */
+#main-chart-wrap {
+    position: relative;
+    height: 420px;
+    transition: height .2s;
+}
+
+/* ── Modo pantalla completa ── */
+.chart-card:fullscreen {
+    padding: 30px;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.chart-card:fullscreen #main-chart-wrap {
+    flex: 1 1 auto;
+    height: auto !important;
+    min-height: 0;
+}
+.chart-card:fullscreen .resumen-row {
+    flex: 0 0 auto;
+    margin-top: 16px;
+}
+
+/* ── Panel de personalización (solo cuando aplica) ── */
+.custom-panel {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 14px;
+    margin-bottom: 16px;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+.custom-panel .left { display: flex; flex-direction: column; gap: 10px; }
+.selector-tabs { display: flex; gap: 6px; }
+.selector-tab {
+    padding: 6px 14px; border-radius: 20px; font-size: .78rem; font-weight: 700;
+    background: #e9ecef; color: #555; cursor: pointer; border: none;
+}
+.selector-tab.active { background: var(--azul-principal); color: #fff; }
+.selector-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.selector-actions button {
+    font-size: .72rem; padding: 5px 10px; border-radius: 6px;
+    border: 1px solid var(--border-color); background: var(--bg-primary);
+    color: var(--text-primary); cursor: pointer; font-weight: 600;
+}
+.selector-actions button:hover { background: rgba(11,59,110,0.08); }
+.entity-list {
+    max-height: 260px; overflow-y: auto;
+    border: 1px solid var(--border-color); border-radius: 10px;
+    padding: 8px; background: var(--bg-primary);
+}
+.entity-list label {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px; border-radius: 6px;
+    font-size: .8rem; cursor: pointer; color: var(--text-primary);
+}
+.entity-list label:hover { background: rgba(11,59,110,0.06); }
+.entity-list input { flex-shrink: 0; }
+
+/* ── Tarjetas resumen ── */
+.resumen-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 18px;
+}
+.resumen-box {
+    border-radius: 12px; padding: 14px; text-align: center;
+    transition: transform .15s;
+}
+.resumen-box .val { font-size: 1.6rem; font-weight: 900; line-height: 1.1; }
+.resumen-box .lbl { font-size: .72rem; color: var(--text-secondary); margin-top: 4px; text-transform: uppercase; letter-spacing: .04em; }
+.resumen-box.r-total  { background: #eef2ff; }
+.resumen-box.r-total  .val { color: var(--azul-principal); }
+.resumen-box.r-voted  { background: #f0fdf4; }
+.resumen-box.r-voted  .val { color: #16a34a; }
+.resumen-box.r-faltan { background: #fff3f4; }
+.resumen-box.r-faltan .val { color: #D7263D; }
+.resumen-box.r-pct    { background: #fef9e0; }
+.resumen-box.r-pct    .val { color: var(--amarillo); }
+
+/* ── Tabla ── */
+#detalle-table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    font-size: .9rem; background: var(--bg-secondary);
+    border-radius: 12px; overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+#detalle-table thead th {
+    background: var(--azul-principal); color: #fff;
+    font-size: .78rem; font-weight: 700; text-transform: uppercase;
+    padding: 12px 14px; text-align: left; letter-spacing: .05em;
+    white-space: nowrap;
+}
+#detalle-table tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary); vertical-align: middle;
+    line-height: 1.45; font-size: .86rem;
+}
+#detalle-table tbody tr:nth-child(even) td { background: rgba(11,59,110,0.03); }
+[data-bs-theme="dark"] #detalle-table tbody tr:nth-child(even) td {
+    background: rgba(245,166,35,0.05);
+}
+#detalle-table tbody tr:hover td { background: rgba(11,59,110,0.07); }
+#detalle-table tbody tr:last-child td { border-bottom: none; }
+
+#detalle-table tbody tr.row-voted td { background: rgba(22,163,74,0.08) !important; }
+#detalle-table tbody tr.row-novoted td { background: rgba(215,38,61,0.06) !important; }
+
+#detalle-table td.num-col, #detalle-table th.num-col {
+    text-align: right; font-variant-numeric: tabular-nums;
+    font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
+    white-space: nowrap; letter-spacing: .4px;
+}
+#detalle-table td.num-col { font-weight: 700; }
+
+#detalle-table tfoot td {
+    background: var(--amarillo); color: #1a1a1a;
+    font-weight: 800; padding: 12px 14px;
+    border-top: 3px solid var(--azul-principal);
+    font-size: .92rem;
+}
+#detalle-table tfoot td.num-col {
+    font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
+    text-align: right;
+}
+
+.entity-dot {
+    display: inline-block; width: 10px; height: 10px;
+    border-radius: 3px; margin-right: 8px; vertical-align: middle;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .tabs-main button { padding: 6px 12px; font-size: .75rem; }
+    .resumen-row { grid-template-columns: repeat(2, 1fr); }
+    .custom-panel { grid-template-columns: 1fr; }
+    #main-chart-wrap { height: 300px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set pct = ((total_votos_reportados / total_empleados * 100) if total_empleados > 0 else 0) | round(1) %}
+
+<span id="_g-total"  style="display:none">{{ total_empleados | int }}</span>
+<span id="_g-votos"  style="display:none">{{ total_votos_reportados | int }}</span>
+<span id="_g-faltan" style="display:none">{{ votos_faltantes | int }}</span>
+<span id="_g-pct"    style="display:none">{{ pct }}</span>
+<span id="_g-logo"   style="display:none">{{ logo_b64 if logo_b64 else '' }}</span>
+
+<!-- ══════════ BARRA DE CONTROL ══════════ -->
+<div class="control-bar">
+    <div class="refresh-status">
+        <span><span id="status-dot" class="status-dot"></span><span id="refresh-status-text">Actualizando...</span></span>
+        <label class="auto-toggle-wrap">
+            <input type="checkbox" id="autoRefresh" checked onchange="toggleAutoRefresh()">
+            <span>Auto cada</span>
+            <select id="refreshInterval" onchange="setRefreshInterval()">
+                <option value="5000">5s</option>
+                <option value="10000" selected>10s</option>
+                <option value="30000">30s</option>
+                <option value="60000">60s</option>
+            </select>
+        </label>
+    </div>
+    <button class="btn-refresh" onclick="refrescarTodo(true)">
+        <i class="fas fa-sync-alt" id="btn-refresh-icon"></i> Actualizar ahora
+    </button>
+</div>
+
+<!-- ══════════ SECCIÓN ÚNICA DE GRÁFICOS ══════════ -->
+<div class="chart-card" id="main-chart-card">
+
+    <!-- Encabezado con pestañas -->
+    <div class="chart-header">
+        <div class="tabs-main" id="tabs-main">
+            <button data-view="ambos" class="active" onclick="setMainView('ambos')">
+                <i class="fas fa-layer-group me-1"></i>Ambos
+            </button>
+            <button data-view="secretarias" onclick="setMainView('secretarias')">
+                <i class="fas fa-building-columns me-1"></i>Secretarías
+            </button>
+            <button data-view="institutos" onclick="setMainView('institutos')">
+                <i class="fas fa-university me-1"></i>Institutos
+            </button>
+            <button data-view="personalizado" onclick="setMainView('personalizado')">
+                <i class="fas fa-list-check me-1"></i>Personalizado
+            </button>
+        </div>
+    </div>
+
+    <!-- Controles secundarios -->
+    <div class="chart-header">
+        <h6 class="chart-title" id="main-chart-title">
+            <i class="fas fa-chart-pie me-2"></i>Participación General
+        </h6>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <div class="toggle-group">
+                <button id="toggleBar" class="active" onclick="setChartType('bar')">
+                    <i class="fas fa-chart-bar me-1"></i>Barra
+                </button>
+                <button id="togglePie" onclick="setChartType('pie')">
+                    <i class="fas fa-chart-pie me-1"></i>Torta
+                </button>
+            </div>
+            <div class="export-btns">
+                <button class="btn-export btn-max" onclick="toggleFullscreen()" id="btnFullscreen" title="Pantalla completa">
+                    <i class="fas fa-expand" id="fullscreenIcon"></i><span id="fullscreenText">Maximizar</span>
+                </button>
+                <button class="btn-export btn-pdf" onclick="exportMainPdf()">
+                    <i class="fas fa-file-pdf"></i>PDF
+                </button>
+                <button class="btn-export btn-img" onclick="exportMainImg()">
+                    <i class="fas fa-image"></i>Imagen
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de personalización (solo en vista "personalizado") -->
+    <div id="custom-panel" class="custom-panel" style="display:none;">
+        <div class="left">
+            <div class="selector-tabs">
+                <button id="tabSec" class="selector-tab active" onclick="switchSelectorTab('secretarias')">
+                    <i class="fas fa-building-columns me-1"></i>Secretarías
+                </button>
+                <button id="tabIns" class="selector-tab" onclick="switchSelectorTab('institutos')">
+                    <i class="fas fa-university me-1"></i>Institutos
+                </button>
+            </div>
+            <div class="selector-actions">
+                <button onclick="selectAllEntities(true)"><i class="fas fa-check-double me-1"></i>Todas</button>
+                <button onclick="selectAllEntities(false)"><i class="fas fa-times me-1"></i>Ninguna</button>
+                <button onclick="clearAllSelection()"><i class="fas fa-eraser me-1"></i>Limpiar</button>
+            </div>
+        </div>
+        <div id="entityList" class="entity-list">
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-spinner fa-spin me-2"></i>Cargando entidades...
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico principal -->
+    <div id="main-chart-wrap">
+        <canvas id="mainChart"></canvas>
+    </div>
+
+    <!-- Tarjetas de resumen -->
+    <div class="resumen-row">
+        <div class="resumen-box r-total">
+            <div class="val" id="res-total">0</div>
+            <div class="lbl">Total Empleados</div>
+        </div>
+        <div class="resumen-box r-voted">
+            <div class="val" id="res-votaron">0</div>
+            <div class="lbl">Votaron</div>
+        </div>
+        <div class="resumen-box r-faltan">
+            <div class="val" id="res-faltan">0</div>
+            <div class="lbl">Faltan</div>
+        </div>
+        <div class="resumen-box r-pct">
+            <div class="val" id="res-pct">0.0%</div>
+            <div class="lbl">Participación</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ TABLA DETALLE ══════════ -->
+<div class="chart-card">
+    <div class="chart-header">
+        <h6 class="chart-title">
+            <i class="fas fa-list-ul me-2"></i>Detalle <span id="detalle-scope">— Ambos módulos</span>
+        </h6>
+    </div>
+    <div class="table-responsive">
+        <table id="detalle-table">
+            <thead>
+                <tr>
+                    <th style="width:50px">#</th>
+                    <th>ENTIDAD</th>
+                    <th class="num-col" style="width:110px">TOTAL</th>
+                    <th class="num-col" style="width:110px">VOTARON</th>
+                    <th class="num-col" style="width:110px">FALTAN</th>
+                    <th class="num-col" style="width:90px">%</th>
+                </tr>
+            </thead>
+            <tbody id="detalle-body"></tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="2">TOTAL GENERAL</td>
+                    <td class="num-col" id="dt-total">0</td>
+                    <td class="num-col" id="dt-votos">0</td>
+                    <td class="num-col" id="dt-faltan">0</td>
+                    <td class="num-col" id="dt-pct">0.0%</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const { jsPDF } = window.jspdf;
+const LOGO_B64 = document.getElementById('_g-logo').textContent.trim();
+
+// ════════════════════════════════════════
+// ESTADO GLOBAL
+// ════════════════════════════════════════
+let mainChart = null;
+let mainView  = 'ambos';        // ambos | secretarias | institutos | personalizado
+let chartType = 'bar';          // bar | pie
+
+let allEntities = [];           // [{id,name,modulo,total,votos}]
+const selectedIds = new Set();
+let activeSelectorTab = 'secretarias';
+
+let statsCache = null;
+let entidadesSecCache = [];
+let entidadesInsCache = [];
+
+let lastDataHash = '';
+let autoRefreshOn = true;
+let refreshTimerId = null;
+let refreshInterval = 10000;
+let secondsSinceUpdate = 0;
+let secondsTimerId = null;
+
+const PIE_PALETTE = ['#0B3B6E', '#1B5E9E', '#F5A623', '#16a34a', '#8b5cf6', '#D7263D', '#0891b2', '#ea580c', '#65a30d', '#db2777', '#06b6d4', '#a16207'];
+
+// ════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════
+function hexToRgb(hex) {
+    const h = hex.replace('#','');
+    return [parseInt(h.substr(0,2),16), parseInt(h.substr(2,2),16), parseInt(h.substr(4,2),16)];
+}
+
+async function logoConOpacidad(b64, opacidad) {
+    return new Promise(resolve => {
+        if (!b64) { resolve(null); return; }
+        const img = new Image();
+        img.onload = () => {
+            const c = document.createElement('canvas');
+            c.width = img.width; c.height = img.height;
+            const ctx = c.getContext('2d');
+            ctx.globalAlpha = opacidad;
+            ctx.drawImage(img, 0, 0);
+            resolve(c.toDataURL('image/png'));
+        };
+        img.onerror = () => resolve(null);
+        img.src = 'data:image/png;base64,' + b64;
+    });
+}
+const _logoCache = {};
+async function getLogoData(op) {
+    if (!_logoCache[op]) _logoCache[op] = await logoConOpacidad(LOGO_B64, op);
+    return _logoCache[op];
+}
+async function pdfHeader(pdf, subtitulo) {
+    const pw = pdf.internal.pageSize.getWidth();
+    pdf.setFillColor(11, 59, 110);
+    pdf.rect(0, 0, pw, 20, 'F');
+    if (LOGO_B64) {
+        try {
+            const logoData = await getLogoData(0.75);
+            if (logoData) pdf.addImage(logoData, 'PNG', 6, 2.5, 15, 15);
+        } catch(e) {}
+    }
+    pdf.setTextColor(255,255,255);
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+    pdf.text('CONSULTA POPULAR NACIONAL 2026', pw/2, 8.5, { align:'center' });
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(8.5);
+    pdf.text('Gobernación del Estado Bolívar  ·  ' + subtitulo, pw/2, 15.5, { align:'center' });
+}
+function pdfFooter(pdf, pag, tot) {
+    const pw = pdf.internal.pageSize.getWidth();
+    const ph = pdf.internal.pageSize.getHeight();
+    pdf.setDrawColor(220,220,220);
+    pdf.line(10, ph-10, pw-10, ph-10);
+    pdf.setTextColor(160,160,160); pdf.setFontSize(7.5); pdf.setFont('helvetica','normal');
+    pdf.text('Generado: ' + new Date().toLocaleString('es-VE'), 12, ph-5);
+    pdf.text('Página ' + pag + ' de ' + tot, pw-12, ph-5, { align:'right' });
+}
+async function pdfWatermark(pdf) {
+    if (!LOGO_B64) return;
+    try {
+        const pw = pdf.internal.pageSize.getWidth();
+        const ph = pdf.internal.pageSize.getHeight();
+        const wSize = Math.min(pw,ph)*0.5;
+        const logoData = await getLogoData(0.06);
+        if (logoData) pdf.addImage(logoData,'PNG',(pw-wSize)/2,(ph-wSize)/2,wSize,wSize);
+    } catch(e) {}
+}
+
+function chartToSquareDataURL(chart) {
+    if (!chart) return null;
+    const src = chart.canvas;
+    const size = Math.min(src.width, src.height);
+    const offsetX = (src.width - size) / 2;
+    const offsetY = (src.height - size) / 2;
+    const tmp = document.createElement('canvas');
+    tmp.width = size; tmp.height = size;
+    const ctx = tmp.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(src, offsetX, offsetY, size, size, 0, 0, size, size);
+    return tmp.toDataURL('image/png');
+}
+
+function fmtFecha() { return new Date().toLocaleDateString('es-VE').replace(/\//g,'-'); }
+
+// ════════════════════════════════════════
+// DATA: obtener la vista actual
+// ════════════════════════════════════════
+function getCurrentViewData() {
+    if (!statsCache) {
+        return { labels: [], totales: [], votos: [], entities: [] };
+    }
+    const s = statsCache;
+
+    if (mainView === 'ambos') {
+        return {
+            labels: ['Secretarías', 'Institutos'],
+            totales: [s.secretarias.total, s.institutos.total],
+            votos:   [s.secretarias.votos, s.institutos.votos],
+            entities: [
+                { name: 'Secretarías', total: s.secretarias.total, votos: s.secretarias.votos },
+                { name: 'Institutos',  total: s.institutos.total,  votos: s.institutos.votos }
+            ]
+        };
+    }
+
+    if (mainView === 'secretarias') {
+        const arr = entidadesSecCache;
+        return {
+            labels: arr.map(e => e.name.length > 30 ? e.name.substring(0,30)+'…' : e.name),
+            totales: arr.map(e => e.total),
+            votos:   arr.map(e => e.votos),
+            entities: arr.map(e => ({ name: e.name, total: e.total, votos: e.votos }))
+        };
+    }
+
+    if (mainView === 'institutos') {
+        const arr = entidadesInsCache;
+        return {
+            labels: arr.map(e => e.name.length > 30 ? e.name.substring(0,30)+'…' : e.name),
+            totales: arr.map(e => e.total),
+            votos:   arr.map(e => e.votos),
+            entities: arr.map(e => ({ name: e.name, total: e.total, votos: e.votos }))
+        };
+    }
+
+    if (mainView === 'personalizado') {
+        const arr = allEntities.filter(e => selectedIds.has(e.id));
+        return {
+            labels: arr.map(e => e.name.length > 30 ? e.name.substring(0,30)+'…' : e.name),
+            totales: arr.map(e => e.total),
+            votos:   arr.map(e => e.votos),
+            entities: arr.map(e => ({ name: e.name, total: e.total, votos: e.votos }))
+        };
+    }
+
+    return { labels: [], totales: [], votos: [], entities: [] };
+}
+
+// ════════════════════════════════════════
+// RENDER: gráfico principal (bar / pie)
+// ════════════════════════════════════════
+function renderMainChart() {
+    const ctx = document.getElementById('mainChart').getContext('2d');
+    const v = getCurrentViewData();
+
+    // Destruir para recrear con nuevos labels
+    if (mainChart) { mainChart.destroy(); mainChart = null; }
+
+    if (v.labels.length === 0) {
+        // Gráfico vacío placeholder
+        mainChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels: ['Sin datos'], datasets: [{ data: [1], backgroundColor: ['#cbd5e1'] }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '60%',
+                plugins: { legend: { display: false }, tooltip: { enabled: false } }
+            }
+        });
+        updateResumen(v);
+        return;
+    }
+
+    if (chartType === 'pie') {
+        const allZero = v.votos.every(x => x === 0);
+        const data    = allZero ? v.totales : v.votos;
+        const colors  = v.labels.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]);
+
+        mainChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: v.labels,
+                datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '42%',
+                plugins: {
+                    legend: {
+                        position: mainView === 'ambos' ? 'bottom' : 'right',
+                        labels: { boxWidth: 12, font: { size: mainView === 'ambos' ? 13 : 11 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (item) => {
+                                const t = v.totales[item.dataIndex];
+                                const val = item.parsed;
+                                if (allZero) return `${item.label}: ${val} empleados`;
+                                const p = t > 0 ? (val/t*100).toFixed(1) : '0.0';
+                                return `${item.label}: ${val} de ${t} (${p}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        const faltan = v.totales.map((t, i) => t - v.votos[i]);
+        mainChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: v.labels,
+                datasets: [
+                    { label: 'Votaron', data: v.votos,  backgroundColor: '#0B3B6E', borderRadius: 6, borderSkipped: false },
+                    { label: 'Faltan',  data: faltan,   backgroundColor: '#D7263D', borderRadius: 6, borderSkipped: false }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                indexAxis: (mainView !== 'ambos' && v.labels.length > 8) ? 'y' : 'x',
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 12 } } },
+                    tooltip: {
+                        mode: 'index', intersect: false,
+                        callbacks: {
+                            afterBody: (items) => {
+                                const idx = items[0].dataIndex;
+                                const t = v.totales[idx];
+                                const val = v.votos[idx];
+                                return ['─────────', `Participación: ${t>0?(val/t*100).toFixed(1):'0.0'}%`];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: { autoSkip: false, font: { size: mainView === 'ambos' ? 13 : 10 }, maxRotation: mainView === 'ambos' ? 0 : 60 } },
+                    y: { stacked: true, grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid-color') }, ticks: { font: { size: 11 } } }
+                }
+            }
+        });
+    }
+
+    updateResumen(v);
+    updateDetalleTable(v);
+}
+
+// Actualiza SOLO los datos sin recrear el chart (sin parpadeo)
+function patchMainChart() {
+    if (!mainChart) { renderMainChart(); return; }
+    const v = getCurrentViewData();
+
+    // Si las labels cambiaron → hay que recrear (Chart.js no permite cambiar categorías sin recrear)
+    const oldLabels = mainChart.data.labels || [];
+    const sameLabels = oldLabels.length === v.labels.length &&
+                       oldLabels.every((l, i) => l === v.labels[i]);
+
+    if (!sameLabels) { renderMainChart(); return; }
+
+    const faltan = v.totales.map((t, i) => t - v.votos[i]);
+
+    if (chartType === 'pie') {
+        const allZero = v.votos.every(x => x === 0);
+        const data = allZero ? v.totales : v.votos;
+        mainChart.data.datasets[0].data = data;
+        mainChart.update('none');
+    } else {
+        mainChart.data.datasets[0].data = v.votos;
+        mainChart.data.datasets[1].data = faltan;
+        mainChart.update('none');
+    }
+
+    updateResumen(v);
+    updateDetalleTable(v);
+}
+
+// ════════════════════════════════════════
+// Resumen + Tabla
+// ════════════════════════════════════════
+function updateResumen(v) {
+    const sumTot = v.totales.reduce((a,b) => a+b, 0);
+    const sumVot = v.votos.reduce((a,b) => a+b, 0);
+    const sumFalt = sumTot - sumVot;
+    const pct = sumTot > 0 ? (sumVot/sumTot*100) : 0;
+
+    document.getElementById('res-total').textContent  = sumTot.toLocaleString();
+    document.getElementById('res-votaron').textContent = sumVot.toLocaleString();
+    document.getElementById('res-faltan').textContent  = sumFalt.toLocaleString();
+    document.getElementById('res-pct').textContent     = pct.toFixed(1) + '%';
+}
+
+function updateDetalleTable(v) {
+    const tbody = document.getElementById('detalle-body');
+    tbody.innerHTML = '';
+
+    if (v.entities.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Sin datos para mostrar</td></tr>';
+    } else {
+        v.entities.forEach((e, i) => {
+            const pct = e.total > 0 ? (e.votos / e.total * 100) : 0;
+            const faltan = e.total - e.votos;
+            const voted = e.votos > 0;
+            const color = PIE_PALETTE[i % PIE_PALETTE.length];
+            const dot = `<span class="entity-dot" style="background:${color}"></span>`;
+            const rowClass = voted ? 'row-voted' : 'row-novoted';
+            tbody.insertAdjacentHTML('beforeend', `
+                <tr class="${rowClass}">
+                    <td>${i+1}</td>
+                    <td>${dot}${e.name}</td>
+                    <td class="num-col">${e.total.toLocaleString()}</td>
+                    <td class="num-col" style="color:#16a34a">${e.votos.toLocaleString()}</td>
+                    <td class="num-col" style="color:#D7263D">${faltan.toLocaleString()}</td>
+                    <td class="num-col">${pct.toFixed(1)}%</td>
+                </tr>
+            `);
+        });
+    }
+
+    const sumTot = v.totales.reduce((a,b) => a+b, 0);
+    const sumVot = v.votos.reduce((a,b) => a+b, 0);
+    const sumFalt = sumTot - sumVot;
+    const pct = sumTot > 0 ? (sumVot/sumTot*100) : 0;
+    document.getElementById('dt-total').textContent  = sumTot.toLocaleString();
+    document.getElementById('dt-votos').textContent  = sumVot.toLocaleString();
+    document.getElementById('dt-faltan').textContent = sumFalt.toLocaleString();
+    document.getElementById('dt-pct').textContent    = pct.toFixed(1) + '%';
+}
+
+// ════════════════════════════════════════
+// CAMBIOS DE VISTA / TIPO
+// ════════════════════════════════════════
+function setMainView(view) {
+    mainView = view;
+
+    // Pestañas activas
+    document.querySelectorAll('#tabs-main button').forEach(b => {
+        b.classList.toggle('active', b.dataset.view === view);
+    });
+
+    // Título dinámico
+    const titles = {
+        ambos: 'Participación General — Ambos módulos',
+        secretarias: 'Participación por Secretaría',
+        institutos: 'Participación por Instituto',
+        personalizado: 'Participación — Selección personalizada'
+    };
+    document.getElementById('main-chart-title').innerHTML =
+        '<i class="fas fa-chart-pie me-2"></i>' + titles[view];
+
+    // Mostrar/ocultar panel de personalización
+    document.getElementById('custom-panel').style.display = (view === 'personalizado') ? 'grid' : 'none';
+
+    // Texto del scope en la tabla
+    const scopes = {
+        ambos: '— Ambos módulos',
+        secretarias: '— Todas las secretarías',
+        institutos: '— Todos los institutos',
+        personalizado: '— Selección personalizada'
+    };
+    document.getElementById('detalle-scope').textContent = scopes[view];
+
+    renderMainChart();
+}
+
+function setChartType(type) {
+    chartType = type;
+    document.getElementById('toggleBar').classList.toggle('active', type === 'bar');
+    document.getElementById('togglePie').classList.toggle('active', type === 'pie');
+    renderMainChart();
+}
+
+// ════════════════════════════════════════
+// FULLSCREEN
+// ════════════════════════════════════════
+function toggleFullscreen() {
+    const card = document.getElementById('main-chart-card');
+    if (!document.fullscreenElement) {
+        if (card.requestFullscreen) {
+            card.requestFullscreen().catch(err => alert('No se pudo maximizar: ' + err.message));
+        } else if (card.webkitRequestFullscreen) {
+            card.webkitRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+    }
+}
+
+document.addEventListener('fullscreenchange', () => {
+    const isFs = !!document.fullscreenElement;
+    const icon = document.getElementById('fullscreenIcon');
+    const text = document.getElementById('fullscreenText');
+    if (isFs) {
+        icon.className = 'fas fa-compress';
+        text.textContent = 'Minimizar';
+    } else {
+        icon.className = 'fas fa-expand';
+        text.textContent = 'Maximizar';
+    }
+    // Redimensionar el chart
+    setTimeout(() => { if (mainChart) mainChart.resize(); }, 150);
+});
+
+// ════════════════════════════════════════
+// AUTO-REFRESH
+// ════════════════════════════════════════
+function toggleAutoRefresh() {
+    autoRefreshOn = document.getElementById('autoRefresh').checked;
+    if (autoRefreshOn) {
+        startAutoRefresh();
+    } else {
+        stopAutoRefresh();
+        document.getElementById('status-dot').classList.add('paused');
+        document.getElementById('refresh-status-text').textContent = 'Auto-refresh pausado';
+    }
+}
+
+function setRefreshInterval() {
+    refreshInterval = parseInt(document.getElementById('refreshInterval').value);
+    if (autoRefreshOn) {
+        stopAutoRefresh();
+        startAutoRefresh();
+    }
+}
+
+function startAutoRefresh() {
+    stopAutoRefresh();
+    document.getElementById('status-dot').classList.remove('paused');
+    refreshTimerId = setInterval(() => {
+        if (!document.hidden) refrescarTodo(false);
+    }, refreshInterval);
+}
+
+function stopAutoRefresh() {
+    if (refreshTimerId) { clearInterval(refreshTimerId); refreshTimerId = null; }
+}
+
+function startSecondsCounter() {
+    if (secondsTimerId) clearInterval(secondsTimerId);
+    secondsTimerId = setInterval(() => {
+        secondsSinceUpdate++;
+        const el = document.getElementById('refresh-status-text');
+        if (autoRefreshOn && !el.dataset.manual) {
+            el.textContent = `Actualizado hace ${secondsSinceUpdate}s`;
+        }
+    }, 1000);
+}
+
+// ════════════════════════════════════════
+// FETCH + DETECCIÓN DE CAMBIOS
+// ════════════════════════════════════════
+async function fetchAll() {
+    const [statsRes, entRes] = await Promise.all([
+        fetch('/api/stats').then(r => r.json()),
+        fetch('/api/entidades_todas').then(r => r.json())
+    ]);
+    return { stats: statsRes, entities: entRes };
+}
+
+async function refrescarTodo(manual) {
+    const btn = document.querySelector('.btn-refresh');
+    const icon = document.getElementById('btn-refresh-icon');
+    if (manual && btn) {
+        btn.disabled = true;
+        icon.classList.remove('fa-sync-alt');
+        icon.classList.add('fa-spinner', 'fa-spin');
+    }
+
+    try {
+        const { stats, entities } = await fetchAll();
+        const newHash = JSON.stringify({ stats, entities });
+
+        if (newHash !== lastDataHash) {
+            // Hay cambios → actualizar todo
+            statsCache = stats;
+            allEntities = entities;
+            entidadesSecCache = entities.filter(e => e.modulo === 'secretarias');
+            entidadesInsCache = entities.filter(e => e.modulo === 'institutos');
+
+            lastDataHash = newHash;
+            secondsSinceUpdate = 0;
+            const st = document.getElementById('refresh-status-text');
+            st.dataset.manual = '';
+            st.textContent = 'Actualizado hace 0s';
+
+            // Repintar
+            if (mainView === 'personalizado') renderSelectorList();
+            patchMainChart();
+        } else {
+            // Sin cambios → solo actualizar el contador de "hace Xs"
+            if (manual) {
+                const st = document.getElementById('refresh-status-text');
+                st.textContent = 'Sin cambios — ' + new Date().toLocaleTimeString('es-VE');
+                setTimeout(() => { st.textContent = `Actualizado hace ${secondsSinceUpdate}s`; }, 2500);
+            }
+        }
+    } catch(e) {
+        console.error('Error refrescando:', e);
+        if (manual) {
+            document.getElementById('refresh-status-text').textContent = 'Error de conexión';
+        }
+    } finally {
+        if (manual && btn) {
+            setTimeout(() => {
+                btn.disabled = false;
+                icon.classList.remove('fa-spinner', 'fa-spin');
+                icon.classList.add('fa-sync-alt');
+            }, 300);
+        }
+    }
+}
+
+// ════════════════════════════════════════
+// SELECTOR (para vista personalizada)
+// ════════════════════════════════════════
+function renderSelectorList() {
+    const cont = document.getElementById('entityList');
+    const filter = allEntities.filter(e => e.modulo === activeSelectorTab);
+    if (!filter.length) {
+        cont.innerHTML = '<div class="text-center text-muted py-3" style="font-size:.82rem">Sin entidades registradas</div>';
+        return;
+    }
+    cont.innerHTML = filter.map(e => `
+        <label>
+            <input type="checkbox" value="${e.id}" ${selectedIds.has(e.id) ? 'checked' : ''}
+                   onchange="onEntityToggle('${e.id}', this.checked)">
+            <span style="flex:1">
+                ${e.name.length>40 ? e.name.substring(0,40)+'…' : e.name}
+                <span style="color:var(--text-secondary);font-size:.72rem"> · ${e.total} emp.</span>
+            </span>
+        </label>
+    `).join('');
+}
+
+function switchSelectorTab(tab) {
+    activeSelectorTab = tab;
+    document.getElementById('tabSec').classList.toggle('active', tab === 'secretarias');
+    document.getElementById('tabIns').classList.toggle('active', tab === 'institutos');
+    renderSelectorList();
+}
+
+function onEntityToggle(id, checked) {
+    if (checked) selectedIds.add(id); else selectedIds.delete(id);
+    if (mainView === 'personalizado') patchMainChart();
+}
+
+function selectAllEntities(checked) {
+    const filter = allEntities.filter(e => e.modulo === activeSelectorTab);
+    filter.forEach(e => { if (checked) selectedIds.add(e.id); else selectedIds.delete(e.id); });
+    renderSelectorList();
+    if (mainView === 'personalizado') patchMainChart();
+}
+
+function clearAllSelection() {
+    selectedIds.clear();
+    renderSelectorList();
+    if (mainView === 'personalizado') patchMainChart();
+}
+
+// ════════════════════════════════════════
+// EXPORT: IMAGEN
+// ════════════════════════════════════════
+async function exportMainImg() {
+    const el = document.getElementById('main-chart-card');
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const bg = isDark ? '#1e1e1e' : '#ffffff';
+    try {
+        // Ocultar botones/controles durante la captura
+        const controls = el.querySelectorAll('.export-btns, .toggle-group, #custom-panel, .chart-header');
+        const origDisplays = [];
+        controls.forEach((c, i) => { origDisplays[i] = c.style.display; c.style.display = 'none'; });
+
+        const canvas = await html2canvas(el, { backgroundColor: bg, scale: 2, useCORS: true, logging: false });
+
+        controls.forEach((c, i) => { c.style.display = origDisplays[i]; });
+
+        const link = document.createElement('a');
+        link.download = 'grafico_' + mainView + '_' + chartType + '_' + fmtFecha() + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    } catch(e) { alert('Error al generar imagen: ' + e.message); }
+}
+
+// ════════════════════════════════════════
+// EXPORT: PDF (landscape, header + gráfico + resumen + tabla)
+// ════════════════════════════════════════
+async function exportMainPdf() {
+    const v = getCurrentViewData();
+    if (v.labels.length === 0) { alert('No hay datos para exportar.'); return; }
+
+    const sumTot = v.totales.reduce((a,b) => a+b, 0);
+    const sumVot = v.votos.reduce((a,b) => a+b, 0);
+    const sumFalt = sumTot - sumVot;
+    const pct = sumTot > 0 ? (sumVot/sumTot*100) : 0;
+
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pw = pdf.internal.pageSize.getWidth();
+    const ph = pdf.internal.pageSize.getHeight();
+
+    const titulos = {
+        ambos: 'Participación General — Ambos módulos',
+        secretarias: 'Participación por Secretaría',
+        institutos: 'Participación por Instituto',
+        personalizado: 'Participación — Selección personalizada'
+    };
+    const titulo = titulos[mainView];
+
+    // ── Página 1 ──
+    await pdfHeader(pdf, titulo);
+    await pdfWatermark(pdf);
+
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(14);
+    pdf.setTextColor(11, 59, 110);
+    pdf.text(titulo, pw/2, 32, { align: 'center' });
+
+    // Gráfico
+    let chartImg = null;
+    if (chartType === 'pie') {
+        // Ocultar legend temporalmente
+        const origDisp = mainChart.options.plugins.legend.display;
+        mainChart.options.plugins.legend.display = false;
+        mainChart.update('none');
+        chartImg = chartToSquareDataURL(mainChart);
+        mainChart.options.plugins.legend.display = origDisp;
+        mainChart.update('none');
+
+        if (chartImg) {
+            const chartSize = 110;
+            const chartX = 15, chartY = 44;
+            pdf.addImage(chartImg, 'PNG', chartX, chartY, chartSize, chartSize);
+
+            // Leyenda nativa a la derecha
+            const legendX = chartX + chartSize + 8;
+            const legendY = chartY + 4;
+            const legendW = pw - legendX - 12;
+            const n = v.labels.length;
+            let cols = 1;
+            if (n > 12) cols = 2;
+            if (n > 30) cols = 3;
+            const colW = legendW / cols;
+            const rowsNeeded = Math.ceil(n / cols);
+            const rowHBase = 5.6;
+            const availH = chartSize - 2;
+            const rowH = rowsNeeded * rowHBase > availH ? availH / rowsNeeded : rowHBase;
+
+            pdf.setFont('helvetica','normal');
+            v.entities.forEach((e, i) => {
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                const x = legendX + col * colW;
+                const y = legendY + row * rowH;
+
+                const color = PIE_PALETTE[i % PIE_PALETTE.length];
+                const [r,g,b] = hexToRgb(color);
+                pdf.setFillColor(r, g, b);
+                pdf.rect(x, y - 2.4, 3, 3, 'F');
+
+                const counterTxt = `${e.votos}/${e.total}`;
+                const counterW = pdf.getTextWidth(counterTxt) + 2;
+                pdf.setFontSize(6.8);
+                pdf.setTextColor(40,40,40);
+                const nameMaxW = colW - 6 - counterW;
+                let name = e.name;
+                while (pdf.getTextWidth(name) > nameMaxW && name.length > 3) {
+                    name = name.substring(0, name.length - 1);
+                }
+                if (name !== e.name) name = name.substring(0, name.length - 1) + '…';
+                pdf.text(name, x + 4.5, y);
+                pdf.setFontSize(6.4);
+                pdf.setTextColor(130,130,130);
+                pdf.text(counterTxt, x + colW - 1, y, { align: 'right' });
+            });
+        }
+    } else {
+        // Barra: usar captura normal
+        const tmp = document.createElement('canvas');
+        tmp.width = mainChart.canvas.width;
+        tmp.height = mainChart.canvas.height;
+        const ctx = tmp.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, tmp.width, tmp.height);
+        ctx.drawImage(mainChart.canvas, 0, 0);
+        chartImg = tmp.toDataURL('image/png');
+
+        if (chartImg) {
+            const chartW = pw - 40;
+            const chartH = Math.min(chartW * 0.55, 105);
+            pdf.addImage(chartImg, 'PNG', (pw - chartW)/2, 44, chartW, chartH);
+        }
+    }
+
+    // Cajas resumen
+    const boxY = ph - 52;
+    const boxH = 24, boxW = 55, boxGap = 8;
+    const totalBoxW = 4 * boxW + 3 * boxGap;
+    const boxStartX = (pw - totalBoxW) / 2;
+    const resumen = [
+        { label: 'TOTAL EMPLEADOS', value: sumTot.toLocaleString(),  color: [11,59,110],  bg: [238,242,255] },
+        { label: 'VOTARON',         value: sumVot.toLocaleString(),  color: [22,163,74],  bg: [240,253,244] },
+        { label: 'FALTAN',          value: sumFalt.toLocaleString(), color: [215,38,61],  bg: [255,243,244] },
+        { label: 'PARTICIPACIÓN',   value: pct.toFixed(1)+'%',       color: [245,166,35], bg: [254,249,224] }
+    ];
+    resumen.forEach((r, i) => {
+        const x = boxStartX + i * (boxW + boxGap);
+        pdf.setFillColor(r.bg[0], r.bg[1], r.bg[2]);
+        pdf.roundedRect(x, boxY, boxW, boxH, 3, 3, 'F');
+        pdf.setFont('helvetica','bold'); pdf.setFontSize(15);
+        pdf.setTextColor(r.color[0], r.color[1], r.color[2]);
+        pdf.text(r.value, x + boxW/2, boxY + 11, { align: 'center' });
+        pdf.setFont('helvetica','normal'); pdf.setFontSize(7);
+        pdf.setTextColor(110, 110, 110);
+        pdf.text(r.label, x + boxW/2, boxY + 18, { align: 'center' });
+    });
+
+    pdfFooter(pdf, 1, 2);
+
+    // ── Página 2+: Tabla ──
+    const rowH = 7.2;
+    const startYTable = 30;
+    const rowsPerPage = Math.floor((ph - 16 - startYTable - 8) / rowH);
+    const colWidths = [10, 175, 24, 24, 24, 20];
+    const headers = ['#', 'ENTIDAD', 'TOTAL', 'VOTARON', 'FALTAN', '%'];
+
+    const rows = v.entities;
+    const totalTableRows = rows.length + 1;
+    const tablePages = Math.ceil(totalTableRows / rowsPerPage);
+    const totalPages = 1 + tablePages;
+
+    let pageNum = 2;
+    for (let i = 0; i < rows.length; i += rowsPerPage) {
+        pdf.addPage();
+        await pdfHeader(pdf, titulo + ' — Detalle');
+        await pdfWatermark(pdf);
+
+        let y = startYTable;
+        // Header
+        pdf.setFillColor(11, 59, 110);
+        pdf.rect(10, y, pw-20, 8, 'F');
+        pdf.setTextColor(255,255,255); pdf.setFont('helvetica','bold'); pdf.setFontSize(8);
+        let x = 12;
+        headers.forEach((h, idx) => {
+            const w = colWidths[idx];
+            let align = 'center', posX;
+            if (idx === 0 || idx === 1) { align = 'left'; posX = x; }
+            else { align = 'right'; posX = x + w - 2; }
+            pdf.text(h, posX, y+5.3, { align });
+            x += w;
+        });
+        y += 8;
+
+        // Filas
+        const slice = rows.slice(i, i + rowsPerPage);
+        slice.forEach((e, k) => {
+            const idx = i + k + 1;
+            const voted = e.votos > 0;
+            if (voted) pdf.setFillColor(232, 250, 238);
+            else       pdf.setFillColor(255, 240, 242);
+            pdf.rect(10, y, pw-20, rowH, 'F');
+
+            if (voted) pdf.setFillColor(22, 163, 74);
+            else       pdf.setFillColor(215, 38, 61);
+            pdf.rect(10, y, 1.2, rowH, 'F');
+
+            pdf.setDrawColor(230,230,230);
+            pdf.line(10, y+rowH, pw-10, y+rowH);
+
+            const pctRow = e.total > 0 ? (e.votos / e.total * 100) : 0;
+            const faltanRow = e.total - e.votos;
+
+            let xx = 13;
+            pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5);
+            pdf.setTextColor(120,120,120);
+            pdf.text(String(idx), xx, y+4.8);
+            xx += colWidths[0];
+
+            pdf.setFontSize(8);
+            pdf.setTextColor(30,30,30);
+            const nombre = e.name.length > 70 ? e.name.substring(0,70)+'…' : e.name;
+            pdf.text(nombre, xx, y+4.8);
+            xx += colWidths[1];
+
+            pdf.setFont('helvetica','bold'); pdf.setFontSize(8);
+            pdf.setTextColor(30,30,30);
+            pdf.text(e.total.toLocaleString(), xx + colWidths[2] - 3, y+4.8, { align: 'right' });
+            xx += colWidths[2];
+
+            pdf.setTextColor(22,163,74);
+            pdf.text(e.votos.toLocaleString(), xx + colWidths[3] - 3, y+4.8, { align: 'right' });
+            xx += colWidths[3];
+
+            pdf.setTextColor(215,38,61);
+            pdf.text(faltanRow.toLocaleString(), xx + colWidths[4] - 3, y+4.8, { align: 'right' });
+            xx += colWidths[4];
+
+            pdf.setTextColor(voted ? 22 : 150, voted ? 163 : 150, voted ? 74 : 150);
+            pdf.text(pctRow.toFixed(1)+'%', xx + colWidths[5] - 3, y+4.8, { align: 'right' });
+
+            y += rowH;
+        });
+
+        // Fila total solo en la última página
+        const isLast = (i + rowsPerPage) >= rows.length;
+        if (isLast) {
+            pdf.setFillColor(245, 166, 35);
+            pdf.rect(10, y, pw-20, 9, 'F');
+            pdf.setDrawColor(11,59,110); pdf.setLineWidth(0.6);
+            pdf.line(10, y, pw-10, y);
+            pdf.setFont('helvetica','bold'); pdf.setFontSize(9);
+            pdf.setTextColor(26,26,26);
+            pdf.text('TOTAL GENERAL', 13, y+6.2);
+            let xt = 13 + colWidths[0] + colWidths[1];
+            pdf.text(sumTot.toLocaleString(),  xt + colWidths[2] - 3, y+6.2, { align: 'right' }); xt += colWidths[2];
+            pdf.text(sumVot.toLocaleString(),  xt + colWidths[3] - 3, y+6.2, { align: 'right' }); xt += colWidths[3];
+            pdf.text(sumFalt.toLocaleString(), xt + colWidths[4] - 3, y+6.2, { align: 'right' }); xt += colWidths[4];
+            pdf.text(pct.toFixed(1)+'%',       xt + colWidths[5] - 3, y+6.2, { align: 'right' });
+        }
+
+        pdfFooter(pdf, pageNum++, totalPages);
+    }
+
+    pdf.save('grafico_' + mainView + '_' + fmtFecha() + '.pdf');
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+    // Primera carga
+    await refrescarTodo(false);
+    renderMainChart();
+    startSecondsCounter();
+    startAutoRefresh();
+
+    // Redimensionar al cambiar tamaño de ventana
+    window.addEventListener('resize', () => { if (mainChart) mainChart.resize(); });
+
+    // Re-render al cambiar tema
+    window.addEventListener('themeChanged', () => { renderMainChart(); });
+});
+</script>
+{% endblock %}

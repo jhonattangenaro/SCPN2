@@ -1,0 +1,85 @@
+<!-- templates/index.html -->
+{% extends "base.html" %}
+{% block title %}Consulta Popular Nacional 2026 — Inicio{% endblock %}
+
+{% block head_extra %}
+<style>
+    .page-title       { text-align:center; margin-bottom:2rem; }
+    .page-title h1    { font-size:2rem; font-weight:900; color:var(--azul); text-transform:uppercase; letter-spacing:.04em; }
+    .page-title h2    { font-size:1.05rem; color:var(--rojo); font-weight:600; margin-top:.3rem; text-transform:uppercase; }
+    .accent-line      { height:4px; width:80px; border-radius:2px;
+                        background:linear-gradient(90deg,var(--rojo),var(--amarillo),var(--azul));
+                        margin:.75rem auto 0; }
+
+    .button-grid      { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:1.25rem; }
+    .secretary-button {
+        background: linear-gradient(135deg, var(--azul) 0%, #2563b0 100%);
+        color: #fff;
+        padding: 1.25rem 1rem;
+        border-radius: .75rem;
+        text-align: center;
+        font-size: .92rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: transform .2s, box-shadow .2s;
+        box-shadow: 0 4px 10px rgba(27,79,155,.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 80px;
+        line-height: 1.4;
+        border-left: 5px solid var(--amarillo);
+    }
+    .secretary-button:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(27,79,155,.35);
+        background: linear-gradient(135deg,#163f80 0%,var(--azul) 100%);
+    }
+
+    .action-buttons   { display:flex; flex-wrap:wrap; gap:1rem; justify-content:center; margin-top:2.5rem; }
+    .btn-action {
+        padding: .9rem 1.8rem;
+        border-radius: .75rem;
+        font-size: 1rem;
+        font-weight: 700;
+        text-decoration: none;
+        transition: transform .2s, box-shadow .2s;
+        box-shadow: 0 4px 10px rgba(0,0,0,.15);
+        text-transform: uppercase;
+        letter-spacing: .03em;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+    }
+    .btn-action:hover { transform:translateY(-3px); box-shadow:0 8px 18px rgba(0,0,0,.2); }
+    .btn-grafico   { background:var(--verde);    color:#fff; }
+    .btn-empleados { background:var(--amarillo); color:#222; }
+    .btn-pdf       { background:var(--rojo);     color:#fff; }
+    .btn-excel     { background:#27AE60;          color:#fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h1>Consulta Popular Nacional 2026</h1>
+    <h2>Secretarías de la Gobernación del Estado Bolívar</h2>
+    <div class="accent-line"></div>
+</div>
+
+<div class="card">
+    <div class="button-grid">
+        {% for secretaria_name in secretarias %}
+        <a href="/secretaria/{{ secretaria_name }}" class="secretary-button">
+            {{ secretaria_name }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="action-buttons">
+    <a href="/grafico_general" class="btn-action btn-grafico">📊 Gráfico General</a>
+    <a href="/empleados_geb"   class="btn-action btn-empleados">👥 Empleados GEB</a>
+    <a href="/export/pdf"      class="btn-action btn-pdf">📄 Exportar PDF</a>
+    <a href="/export/excel"    class="btn-action btn-excel">📁 Exportar Excel</a>
+</div>
+{% endblock %}

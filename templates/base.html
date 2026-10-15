@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Consulta Popular 2026{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        :root {
+            --azul-principal: #0B3B6E;
+            --azul-secundario: #1B5E9E;
+            --amarillo: #F5A623;
+            --sidebar-w: 260px;
+            --bg-primary: #F8F9FA;
+            --bg-secondary: #FFFFFF;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --card-bg: rgba(255,255,255,0.95);
+            --sidebar-bg: linear-gradient(180deg, #0a2b4f 0%, var(--azul-principal) 100%);
+            --sidebar-text: rgba(255,255,255,0.85);
+            --topbar-bg: rgba(255,255,255,0.95);
+            --border-color: rgba(11,59,110,.08);
+            --chart-text-color: #212529;
+            --chart-grid-color: #ddd;
+        }
+        [data-bs-theme="dark"] {
+            --bg-primary: #121212;
+            --bg-secondary: #1e1e1e;
+            --text-primary: #f0f0f0;
+            --text-secondary: #a0a0a0;
+            --card-bg: rgba(30,30,30,0.95);
+            --sidebar-bg: linear-gradient(180deg, #061a30 0%, #0a2b4f 100%);
+            --sidebar-text: #e0e0e0;
+            --topbar-bg: rgba(30,30,30,0.98);
+            --border-color: rgba(245,166,35,.2);
+            --chart-text-color: #f0f0f0;
+            --chart-grid-color: #444;
+        }
+        body {
+            background: var(--bg-primary);
+            font-family: 'Segoe UI', sans-serif;
+            color: var(--text-primary);
+            position: relative;
+            min-height: 100vh;
+            transition: background-color 0.3s ease, color 0.2s ease;
+        }
+        body::before {
+            content: "";
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(80vw, 800px);
+            height: min(80vw, 800px);
+            background-image: url("{{ url_for('static', filename='logo.png') }}");
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.08;
+            pointer-events: none;
+            z-index: 0;
+        }
+        [data-bs-theme="dark"] body::before { opacity: 0.15; }
+
+        #sidebar {
+            width: var(--sidebar-w);
+            min-height: 100vh;
+            background: var(--sidebar-bg);
+            position: fixed; top:0; left:0; z-index:1000;
+            display:flex; flex-direction:column;
+            transition: transform .3s, background 0.3s ease;
+            box-shadow: 2px 0 10px rgba(0,0,0,.1);
+        }
+        #sidebar.collapsed { transform: translateX(-100%); }
+        #sidebar .brand {
+            padding:20px 18px 16px;
+            border-bottom:1px solid rgba(255,255,255,.12);
+        }
+        #sidebar .brand .logo-container {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 5px;
+        }
+        #sidebar .brand .logo-container .logo-bg {
+            background: white; width: 40px; height: 40px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,.2);
+        }
+        #sidebar .brand .logo-container .logo-bg img { width: 30px; height: auto; }
+        #sidebar .brand h5 {
+            color: #fff; font-weight: 800; font-size: .95rem; margin: 0; line-height: 1.3;
+        }
+        #sidebar .brand small { color: var(--amarillo); font-size: .75rem; }
+        #sidebar .nav-section {
+            padding:12px 18px 4px;
+            font-size:.68rem; font-weight:700;
+            color:rgba(255,255,255,.4); letter-spacing:.08em; text-transform:uppercase;
+        }
+        #sidebar .nav-link {
+            color: var(--sidebar-text); padding:9px 18px;
+            border-radius:0; display:flex; align-items:center; gap:10px;
+            font-size:.875rem; transition:all .2s;
+            background:none; border:none; width:100%; text-align:left;
+        }
+        #sidebar .nav-link:hover, #sidebar .nav-link.active {
+            background:rgba(255,255,255,.15); color:#fff;
+            border-left:4px solid var(--amarillo);
+        }
+        #sidebar .nav-link i { width:18px; text-align:center; opacity:.85; }
+        #sidebar .user-box {
+            margin-top:auto; padding:14px 18px;
+            border-top:1px solid rgba(255,255,255,.15);
+            background:rgba(0,0,0,.1);
+        }
+        #sidebar .user-box .user-info { display: flex; align-items: center; gap: 10px; }
+        #sidebar .user-box .user-avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: white; display: flex; align-items: center; justify-content: center;
+        }
+        #sidebar .user-box .user-avatar i { color: var(--azul-principal); font-size: 1rem; }
+        #sidebar .user-box .name { color:#fff; font-size:.82rem; font-weight:600; }
+        #sidebar .user-box .role { color:var(--amarillo); font-size:.72rem; }
+
+        #main {
+            margin-left: var(--sidebar-w);
+            padding:0; min-height:100vh; transition: margin-left .3s;
+        }
+        #main.expanded { margin-left: 0; }
+        .topbar {
+            background: var(--topbar-bg);
+            padding:12px 28px;
+            border-bottom:3px solid var(--azul-principal);
+            display:flex; align-items:center; justify-content:space-between;
+            position:sticky; top:0; z-index:900; box-shadow:0 2px 8px var(--border-color);
+        }
+        .topbar .page-title {
+            font-weight:700; color: var(--azul-principal); font-size:1.1rem; margin:0;
+        }
+        [data-bs-theme="dark"] .topbar .page-title { color: var(--amarillo); }
+        .content-area { padding:24px 28px; }
+
+        .theme-toggle {
+            background: transparent;
+            border: 2px solid var(--azul-principal);
+            color: var(--azul-principal);
+            border-radius: 30px;
+            padding: 5px 15px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex; align-items: center; gap: 8px;
+            transition: all 0.3s ease;
+        }
+        .theme-toggle:hover { background: var(--azul-principal); color: white; }
+        [data-bs-theme="dark"] .theme-toggle {
+            border-color: var(--amarillo); color: var(--amarillo);
+        }
+        .stat-card {
+            border:none; border-radius:14px; padding:22px;
+            background: var(--card-bg);
+            box-shadow:0 4px 12px var(--border-color);
+            transition:transform .2s, background 0.3s ease;
+        }
+        .stat-card:hover { transform:translateY(-2px); }
+        .stat-card .icon {
+            width:48px; height:48px; border-radius:12px;
+            display:flex; align-items:center; justify-content:center;
+            font-size:1.3rem; color:#fff; margin-bottom:12px;
+            background: linear-gradient(135deg, var(--azul-principal), var(--azul-secundario));
+        }
+        .stat-card .value { font-size:1.9rem; font-weight:800; color: var(--azul-principal); }
+        [data-bs-theme="dark"] .stat-card .value { color: var(--amarillo); }
+        .stat-card .label { color: var(--text-secondary); font-size:.8rem; margin-top:2px; }
+        .progress-bar-custom {
+            height:6px; border-radius:3px; background: #e9ecef; overflow:hidden; margin-top:10px;
+        }
+        .progress-fill {
+            height:100%; border-radius:3px;
+            background: linear-gradient(90deg, var(--azul-principal), var(--amarillo));
+        }
+        .table-custom th {
+            background: var(--azul-principal); color:#fff; font-size:.78rem;
+            text-transform:uppercase; letter-spacing:.05em; border:none;
+        }
+        .btn-azul {
+            background: var(--azul-principal); color: #fff; border: none;
+            padding: 8px 16px; border-radius: 8px; font-weight: 600;
+            transition: background .2s;
+        }
+        .btn-azul:hover { background: #072d55; color: #fff; }
+        .btn-amarillo {
+            background: var(--amarillo); color: #212529; border: none;
+            padding: 8px 16px; border-radius: 8px; font-weight: 600;
+        }
+        .badge-azul  { background: var(--azul-principal); color: #fff; }
+        .badge-amarillo   { background: var(--amarillo); color: #212529; }
+        .badge-acceso-total { background: #1B5E9E; color: #fff; }
+
+        @media (max-width: 992px) { .content-area { padding: 16px; } }
+        @media (max-width: 768px) { .nav-link { padding: 12px 18px; } }
+        @media (max-width: 576px) {
+            .content-area { padding: 12px; }
+            .topbar { padding: 8px 12px; }
+            .stat-card .value { font-size: 1.3rem; }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{% if session.user_id %}
+<nav id="sidebar">
+    <div class="brand">
+        <div class="logo-container">
+            <div class="logo-bg">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+            </div>
+            <div>
+                <h5>Consulta Popular<br>Nacional 2026</h5>
+            </div>
+        </div>
+        <small>Gobernación Estado Bolívar</small>
+    </div>
+
+    <div class="pt-2">
+        <div class="nav-section">Principal</div>
+        <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint=='dashboard' }}">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+
+        {% set perms = session.get('permissions', {}) %}
+        {% set emods = session.get('entity_modules', []) %}
+        {% set can_grafico = session.is_superuser or session.is_full_access or perms.get('grafico_general', {}).get('can_view') %}
+
+        {% if can_grafico %}
+        <a href="{{ url_for('grafico_general') }}" class="nav-link {{ 'active' if request.endpoint=='grafico_general' }}">
+            <i class="fas fa-chart-pie"></i> Gráfico General
+        </a>
+        {% endif %}
+
+        {% set can_sec = session.is_superuser or session.is_full_access or perms.get('secretarias', {}).get('can_view') or 'secretarias' in emods %}
+        {% set can_ins = session.is_superuser or session.is_full_access or perms.get('institutos',  {}).get('can_view') or 'institutos'  in emods %}
+
+        {% if can_sec or can_ins %}
+        <div class="nav-section">Módulos</div>
+        {% endif %}
+
+        {% if can_sec %}
+        <a href="{{ url_for('secretarias_list') }}" class="nav-link">
+            <i class="fas fa-building-columns"></i> Secretarías
+        </a>
+        {% endif %}
+        {% if can_ins %}
+        <a href="{{ url_for('institutos_list') }}" class="nav-link">
+            <i class="fas fa-university"></i> Institutos
+        </a>
+        {% endif %}
+
+        {% if session.is_superuser or session.is_full_access %}
+        <div class="nav-section">Administración</div>
+        <a href="{{ url_for('admin_usuarios') }}" class="nav-link">
+            <i class="fas fa-users-cog"></i> Usuarios
+        </a>
+        <a href="{{ url_for('admin_entidades') }}" class="nav-link">
+            <i class="fas fa-sitemap"></i> Entidades
+        </a>
+        <a href="{{ url_for('admin_respaldo') }}" class="nav-link">
+            <i class="fas fa-database"></i> Respaldo
+        </a>
+        <button type="button" class="nav-link" data-bs-toggle="modal" data-bs-target="#exportExcelModal">
+            <i class="fas fa-file-excel" style="color:#1e7e34"></i> Exportar Excel
+        </button>
+        <button type="button" class="nav-link" data-bs-toggle="modal" data-bs-target="#exportPdfModal">
+            <i class="fas fa-file-pdf" style="color:#c0392b"></i> Exportar PDF
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="user-box">
+        <div class="user-info">
+            <div class="user-avatar">
+                <i class="fas fa-user"></i>
+            </div>
+            <div>
+                <div class="name">{{ session.full_name }}</div>
+                <div class="role">
+                    {% if session.is_superuser %}Superusuario
+                    {% elif session.is_full_access %}Acceso Total
+                    {% else %}Operador{% endif %}
+                </div>
+            </div>
+        </div>
+        <a href="{{ url_for('logout') }}" class="btn btn-sm mt-2 w-100" style="background-color: #F5A623; color: #212529; font-weight: 600; border: none;">
+            <i class="fas fa-sign-out-alt me-1"></i> Cerrar Sesión
+        </a>
+    </div>
+</nav>
+
+<div id="main">
+    <div class="topbar">
+        <div class="d-flex align-items-center gap-3">
+            <button id="sidebarToggle" class="btn btn-sm btn-outline-secondary" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <h6 class="page-title">{% block page_title %}{% endblock %}</h6>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeToggle">
+                <i class="fas fa-sun"></i>
+                <span id="themeText">Modo Claro</span>
+            </button>
+            <span class="badge badge-azul">{{ session.username }}</span>
+            {% if session.is_superuser %}
+            <span class="badge badge-amarillo">
+                <i class="fas fa-crown me-1"></i>Admin
+            </span>
+            {% elif session.is_full_access %}
+            <span class="badge badge-acceso-total">
+                <i class="fas fa-star me-1"></i>Total
+            </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="content-area">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+</div>
+
+<!-- Modales de exportación -->
+<div class="modal fade" id="exportExcelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--azul-principal);color:#fff">
+                <h5 class="modal-title"><i class="fas fa-file-excel me-2"></i>Exportar a Excel</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Selecciona los módulos a incluir:</p>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="secretarias" id="excelSec" checked>
+                    <label class="form-check-label" for="excelSec">Secretarías</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="institutos" id="excelIns" checked>
+                    <label class="form-check-label" for="excelIns">Institutos</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-azul" onclick="exportSelected('excel')">Descargar Excel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="exportPdfModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--azul-principal);color:#fff">
+                <h5 class="modal-title"><i class="fas fa-file-pdf me-2"></i>Exportar a PDF</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Selecciona los módulos a incluir:</p>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="secretarias" id="pdfSec" checked>
+                    <label class="form-check-label" for="pdfSec">Secretarías</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="institutos" id="pdfIns" checked>
+                    <label class="form-check-label" for="pdfIns">Institutos</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-azul" onclick="exportSelected('pdf')">Descargar PDF</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+{% block auth_content %}{% endblock %}
+{% endif %}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+<script>
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+    document.getElementById('main').classList.toggle('expanded');
+}
+function exportSelected(format) {
+    let modules = [];
+    if (format === 'excel') {
+        if (document.getElementById('excelSec').checked) modules.push('secretarias');
+        if (document.getElementById('excelIns').checked) modules.push('institutos');
+        bootstrap.Modal.getInstance(document.getElementById('exportExcelModal')).hide();
+    } else if (format === 'pdf') {
+        if (document.getElementById('pdfSec').checked) modules.push('secretarias');
+        if (document.getElementById('pdfIns').checked) modules.push('institutos');
+        bootstrap.Modal.getInstance(document.getElementById('exportPdfModal')).hide();
+    }
+    if (modules.length === 0) {
+        alert('Debes seleccionar al menos un módulo.');
+        return;
+    }
+    window.location.href = `/export/${format}?` + modules.map(m => `modules=${m}`).join('&');
+}
+function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-bs-theme');
+    const newTheme = current === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-bs-theme', newTheme);
+    const themeText = document.getElementById('themeText');
+    const themeIcon = document.querySelector('#themeToggle i');
+    if (newTheme === 'dark') {
+        themeText.textContent = 'Modo Oscuro';
+        themeIcon.className = 'fas fa-moon';
+    } else {
+        themeText.textContent = 'Modo Claro';
+        themeIcon.className = 'fas fa-sun';
+    }
+    localStorage.setItem('theme', newTheme);
+    window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: newTheme } }));
+}
+document.addEventListener('DOMContentLoaded', function() {
+    const saved = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-bs-theme', saved);
+    const themeText = document.getElementById('themeText');
+    const themeIcon = document.querySelector('#themeToggle i');
+    if (saved === 'dark') {
+        themeText.textContent = 'Modo Oscuro';
+        themeIcon.className = 'fas fa-moon';
+    } else {
+        themeText.textContent = 'Modo Claro';
+        themeIcon.className = 'fas fa-sun';
+    }
+    if (window.innerWidth <= 768) {
+        document.getElementById('sidebar').classList.add('collapsed');
+        document.getElementById('main').classList.add('expanded');
+    }
+});
+document.addEventListener('click', function(event) {
+    const sidebar = document.getElementById('sidebar');
+    const toggle = document.getElementById('sidebarToggle');
+    if (window.innerWidth <= 768 && !sidebar.contains(event.target) && !toggle.contains(event.target) && !sidebar.classList.contains('collapsed')) {
+        sidebar.classList.add('collapsed');
+        document.getElementById('main').classList.add('expanded');
+    }
+});
+document.addEventListener('hidden.bs.modal', function () {
+    if (!document.querySelector('.modal.show')) {
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+    }
+});
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

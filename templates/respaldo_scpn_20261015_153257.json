@@ -1,0 +1,497 @@
+{
+  "app": "SCPN - Consulta Popular Nacional 2026",
+  "version": "1.0",
+  "fecha_generacion": "2026-10-15T15:32:57.334050",
+  "generado_por": "admin",
+  "datos": {
+    "users": [
+      {
+        "id": 1,
+        "username": "admin",
+        "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+        "full_name": "Administrador del Sistema",
+        "is_superuser": 1,
+        "is_active": 1,
+        "created_at": "2026-03-06T09:26:09.409334",
+        "is_full_access": 0
+      },
+      {
+        "id": 2,
+        "username": "jggarcia",
+        "password": "ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f",
+        "full_name": "Jhonattan",
+        "is_superuser": 0,
+        "is_active": 1,
+        "created_at": "2026-03-06T11:02:12.261580",
+        "is_full_access": 0
+      },
+      {
+        "id": 3,
+        "username": "JDBOLIVAR",
+        "password": "80acaa014fce4d1b78de4643ba412bbbe3ce74f5ddb6f16ec49c1016eef59f81",
+        "full_name": "Daniel Bolivar",
+        "is_superuser": 0,
+        "is_active": 1,
+        "created_at": "2026-06-15T13:14:40.178900",
+        "is_full_access": 1
+      },
+      {
+        "id": 4,
+        "username": "rainer",
+        "password": "ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f",
+        "full_name": "rainer",
+        "is_superuser": 0,
+        "is_active": 1,
+        "created_at": "2026-10-09T10:50:41.144290",
+        "is_full_access": 1
+      }
+    ],
+    "secretarias": [
+      {
+        "id": 1,
+        "name": "DESPACHO DEL GOBERNADOR",
+        "empleados": 200,
+        "votos_reportados": 40
+      },
+      {
+        "id": 2,
+        "name": "SECRETARIA CULTURAL",
+        "empleados": 274,
+        "votos_reportados": 50
+      },
+      {
+        "id": 3,
+        "name": "SECRETARIA DE ADMINISTRACION Y FINANZAS",
+        "empleados": 125,
+        "votos_reportados": 0
+      },
+      {
+        "id": 4,
+        "name": "SECRETARIA DE AMBIENTE",
+        "empleados": 67,
+        "votos_reportados": 0
+      },
+      {
+        "id": 5,
+        "name": "SECRETARIA DE ASUNTOS ESTRATEGICOS Y PROYECTOS ESPECIALES",
+        "empleados": 6,
+        "votos_reportados": 0
+      },
+      {
+        "id": 7,
+        "name": "SECRETARIA DE CIENCIA, TECNOLOGIA E INNOVACION",
+        "empleados": 29,
+        "votos_reportados": 0
+      },
+      {
+        "id": 8,
+        "name": "SECRETARIA DE COMUNICACION E INFORMACION",
+        "empleados": 76,
+        "votos_reportados": 0
+      },
+      {
+        "id": 9,
+        "name": "SECRETARIA DE DESARROLLO AGROINDUSTRIAL",
+        "empleados": 7,
+        "votos_reportados": 0
+      },
+      {
+        "id": 10,
+        "name": "SECRETARIA DE DESARROLLO SOCIAL",
+        "empleados": 53,
+        "votos_reportados": 0
+      },
+      {
+        "id": 11,
+        "name": "SECRETARIA DE ECONOMIA PRODUCTIVA",
+        "empleados": 12,
+        "votos_reportados": 0
+      },
+      {
+        "id": 12,
+        "name": "SECRETARIA DE EDUCACION",
+        "empleados": 1537,
+        "votos_reportados": 50
+      },
+      {
+        "id": 13,
+        "name": "SECRETARIA DE JUVENTUD",
+        "empleados": 21,
+        "votos_reportados": 0
+      },
+      {
+        "id": 14,
+        "name": "SECRETARIA DE MANTENIMIENTO Y SERVICIOS GENERALES",
+        "empleados": 661,
+        "votos_reportados": 100
+      },
+      {
+        "id": 15,
+        "name": "SECRETARIA DE PLANIFICACION PODER POPULAR COMUNAL",
+        "empleados": 46,
+        "votos_reportados": 0
+      },
+      {
+        "id": 16,
+        "name": "SECRETARIA DE RELIGION Y CULTO",
+        "empleados": 17,
+        "votos_reportados": 0
+      },
+      {
+        "id": 17,
+        "name": "SECRETARIA DE SEGURIDAD CIUDADANA",
+        "empleados": 2108,
+        "votos_reportados": 0
+      },
+      {
+        "id": 18,
+        "name": "SECRETARIA DEL ADULTO MAYOR",
+        "empleados": 92,
+        "votos_reportados": 0
+      },
+      {
+        "id": 19,
+        "name": "SECRETARIA DEL TALENTO HUMANO",
+        "empleados": 339,
+        "votos_reportados": 0
+      },
+      {
+        "id": 20,
+        "name": "SECRETARIA DEL TURISMO",
+        "empleados": 54,
+        "votos_reportados": 0
+      },
+      {
+        "id": 21,
+        "name": "SECRETARIA GENERAL DE GOBIERNO",
+        "empleados": 340,
+        "votos_reportados": 10
+      },
+      {
+        "id": 22,
+        "name": "SECRETARIA POLITICA",
+        "empleados": 1054,
+        "votos_reportados": 300
+      },
+      {
+        "id": 23,
+        "name": "SECRETARIA UNICA DEL SISTEMA INTEGRAL DE PROTECCION DE NIÑOS, NIÑAS Y ADOLESCENTES",
+        "empleados": 35,
+        "votos_reportados": 0
+      },
+      {
+        "id": 47,
+        "name": "SECRETARIA DE LAS COMUNAS",
+        "empleados": 96,
+        "votos_reportados": 0
+      }
+    ],
+    "institutos": [
+      {
+        "id": 1,
+        "name": "CONSEJO LEGISLATIVO DEL ESTADO BOLIVAR",
+        "empleados": 284,
+        "votos_reportados": 0
+      },
+      {
+        "id": 2,
+        "name": "CONTRALORIA DEL ESTADO BOLIVAR",
+        "empleados": 182,
+        "votos_reportados": 0
+      },
+      {
+        "id": 3,
+        "name": "PROCURADURIA DEL ESTADO BOLIVAR",
+        "empleados": 45,
+        "votos_reportados": 0
+      },
+      {
+        "id": 4,
+        "name": "CONSTRUBOLIVAR, C.A.",
+        "empleados": 136,
+        "votos_reportados": 0
+      },
+      {
+        "id": 5,
+        "name": "ALFARERIA BOLIVAR, C.A.",
+        "empleados": 111,
+        "votos_reportados": 0
+      },
+      {
+        "id": 6,
+        "name": "GRANITOS BOLIVAR",
+        "empleados": 56,
+        "votos_reportados": 0
+      },
+      {
+        "id": 7,
+        "name": "HIDROBOLIVAR, C.A.",
+        "empleados": 1100,
+        "votos_reportados": 0
+      },
+      {
+        "id": 8,
+        "name": "TRANSBOLIVAR, C.A.",
+        "empleados": 319,
+        "votos_reportados": 0
+      },
+      {
+        "id": 9,
+        "name": "ALIMENTOS BOLIVAR, C.A.",
+        "empleados": 183,
+        "votos_reportados": 0
+      },
+      {
+        "id": 10,
+        "name": "BOLIVAR GAS",
+        "empleados": 256,
+        "votos_reportados": 0
+      },
+      {
+        "id": 11,
+        "name": "FONDO BOLIVAR",
+        "empleados": 38,
+        "votos_reportados": 0
+      },
+      {
+        "id": 12,
+        "name": "AGROBOLÍVAR",
+        "empleados": 118,
+        "votos_reportados": 0
+      },
+      {
+        "id": 13,
+        "name": "OPERADORA TURISTICA BOLIVAR, C.A.",
+        "empleados": 12,
+        "votos_reportados": 0
+      },
+      {
+        "id": 14,
+        "name": "FUNDACIÓN MUSEO DE ARTE MODERNO JESÚS SOTO",
+        "empleados": 54,
+        "votos_reportados": 0
+      },
+      {
+        "id": 15,
+        "name": "FUNDACIÓN CONSERVATORIO DE MÚSICA Y ORQUESTA SINFÓNICA",
+        "empleados": 25,
+        "votos_reportados": 0
+      },
+      {
+        "id": 16,
+        "name": "FUNDACIÓN CONSERVATORIO DE DANZA DEL ESTADO BOLÍVAR",
+        "empleados": 27,
+        "votos_reportados": 0
+      },
+      {
+        "id": 17,
+        "name": "FUNDACION SOCIAL BOLIVAR",
+        "empleados": 256,
+        "votos_reportados": 0
+      },
+      {
+        "id": 18,
+        "name": "FUNDACION CULTURAL ANGOSTURA",
+        "empleados": 30,
+        "votos_reportados": 0
+      },
+      {
+        "id": 19,
+        "name": "FUNDACION REGIONAL NIÑO SIMON",
+        "empleados": 135,
+        "votos_reportados": 0
+      },
+      {
+        "id": 20,
+        "name": "FUNDACION CACHAMAY",
+        "empleados": 67,
+        "votos_reportados": 0
+      },
+      {
+        "id": 21,
+        "name": "FUNDACIÓN BIBLIOTECA VIRTUAL MANUEL CARLOS PIAR (CARONÍ)",
+        "empleados": 13,
+        "votos_reportados": 0
+      },
+      {
+        "id": 22,
+        "name": "FUNDACIÓN BIBLIOTECA VIRTUAL MANUEL CARLOS PIAR (HERES)",
+        "empleados": 15,
+        "votos_reportados": 0
+      },
+      {
+        "id": 23,
+        "name": "FUNDACION ESPERANZA BOLIVAR",
+        "empleados": 50,
+        "votos_reportados": 0
+      },
+      {
+        "id": 24,
+        "name": "FUNDACION ARMONIA",
+        "empleados": 75,
+        "votos_reportados": 0
+      },
+      {
+        "id": 25,
+        "name": "FUNDACION PARQUE FERIAL",
+        "empleados": 46,
+        "votos_reportados": 0
+      },
+      {
+        "id": 26,
+        "name": "INSTITUTO AUTÓNOMO DE MINAS BOLIVAR",
+        "empleados": 59,
+        "votos_reportados": 0
+      },
+      {
+        "id": 27,
+        "name": "INSTITUTO AUTÓNOMO INDÍGENA DEL ESTADO BOLIVAR",
+        "empleados": 38,
+        "votos_reportados": 0
+      },
+      {
+        "id": 28,
+        "name": "INSTITUTOS DE DEPORTES DEL ESTADO BOLIVAR (IDEBOL)",
+        "empleados": 120,
+        "votos_reportados": 0
+      },
+      {
+        "id": 29,
+        "name": "INSTITUTO DE VIVIENDA Y OBRAS DEL ESTADO BOLIVAR (INVIOBRAS)",
+        "empleados": 226,
+        "votos_reportados": 0
+      },
+      {
+        "id": 30,
+        "name": "INSTITUTO REGIONAL DE LA MUJER MAMA ROSA",
+        "empleados": 55,
+        "votos_reportados": 0
+      },
+      {
+        "id": 31,
+        "name": "COMPLEJO AGROINDUSTRIAL DEL MAIZ",
+        "empleados": 48,
+        "votos_reportados": 0
+      },
+      {
+        "id": 32,
+        "name": "PARQUE TECNOLOGICO SIMÓN BOLÍVAR",
+        "empleados": 7,
+        "votos_reportados": 0
+      },
+      {
+        "id": 33,
+        "name": "CORPORACIÓN MINERA CANAIMA",
+        "empleados": 10,
+        "votos_reportados": 0
+      }
+    ],
+    "jubilados": [],
+    "user_permissions": [
+      {
+        "id": 6,
+        "user_id": 2,
+        "module": "grafico_general",
+        "can_view": 1,
+        "can_edit": 0
+      },
+      {
+        "id": 11,
+        "user_id": 3,
+        "module": "secretarias",
+        "can_view": 1,
+        "can_edit": 0
+      },
+      {
+        "id": 12,
+        "user_id": 3,
+        "module": "institutos",
+        "can_view": 1,
+        "can_edit": 0
+      },
+      {
+        "id": 13,
+        "user_id": 3,
+        "module": "jubilados",
+        "can_view": 1,
+        "can_edit": 0
+      },
+      {
+        "id": 14,
+        "user_id": 3,
+        "module": "grafico_general",
+        "can_view": 1,
+        "can_edit": 0
+      }
+    ],
+    "user_entity_permissions": [
+      {
+        "id": 3,
+        "user_id": 2,
+        "module": "secretarias",
+        "entity_id": 21,
+        "can_edit": 1
+      }
+    ],
+    "secretarias_history": [
+      {
+        "id": 9,
+        "entidad_id": 1,
+        "timestamp": "2026-06-12 08:43:21",
+        "votos_sumados": 10,
+        "user_id": 1
+      },
+      {
+        "id": 10,
+        "entidad_id": 2,
+        "timestamp": "2026-06-18 17:04:56",
+        "votos_sumados": 50,
+        "user_id": 1
+      },
+      {
+        "id": 11,
+        "entidad_id": 12,
+        "timestamp": "2026-10-08 12:37:14",
+        "votos_sumados": 50,
+        "user_id": 1
+      },
+      {
+        "id": 12,
+        "entidad_id": 14,
+        "timestamp": "2026-10-08 12:37:44",
+        "votos_sumados": 100,
+        "user_id": 1
+      },
+      {
+        "id": 13,
+        "entidad_id": 22,
+        "timestamp": "2026-10-08 12:38:12",
+        "votos_sumados": 200,
+        "user_id": 1
+      },
+      {
+        "id": 14,
+        "entidad_id": 22,
+        "timestamp": "2026-10-09 10:44:03",
+        "votos_sumados": 100,
+        "user_id": 1
+      },
+      {
+        "id": 15,
+        "entidad_id": 1,
+        "timestamp": "2026-10-09 10:53:10",
+        "votos_sumados": 30,
+        "user_id": 4
+      },
+      {
+        "id": 16,
+        "entidad_id": 21,
+        "timestamp": "2026-10-09 10:54:54",
+        "votos_sumados": 10,
+        "user_id": 2
+      }
+    ],
+    "institutos_history": [],
+    "jubilados_history": []
+  }
+}

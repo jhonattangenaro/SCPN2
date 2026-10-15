@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Respaldo de Datos - SCPN{% endblock %}
+{% block page_title %}Respaldo de Datos{% endblock %}
+
+{% block extra_css %}
+<style>
+.respaldo-card {
+    background: var(--card-bg);
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 4px 12px var(--border-color);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+.respaldo-card h6 {
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.respaldo-card.download h6 { color: var(--azul-principal); }
+.respaldo-card.upload   h6 { color: #d97706; }
+.stats-table {
+    font-size: .82rem;
+    margin-bottom: 16px;
+    width: 100%;
+}
+.stats-table td { padding: 6px 4px; border-bottom: 1px solid var(--border-color); }
+.stats-table td:last-child { text-align: right; font-weight: 700; }
+.btn-respaldo {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: .9rem;
+    border: none;
+    cursor: pointer;
+    transition: transform .15s, opacity .15s;
+    text-decoration: none;
+}
+.btn-respaldo:hover { transform: translateY(-2px); opacity: .92; }
+.btn-download { background: var(--azul-principal); color: #fff; }
+.btn-upload   { background: #d97706; color: #fff; }
+.btn-upload:disabled { opacity: .55; cursor: not-allowed; }
+
+.modo-box {
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    margin-bottom: 10px;
+    transition: border-color .15s;
+    cursor: pointer;
+    display: block;
+}
+.modo-box:hover { border-color: var(--azul-principal); }
+.modo-box.selected {
+    border-color: var(--azul-principal);
+    background: rgba(11,59,110,.06);
+}
+[data-bs-theme="dark"] .modo-box.selected {
+    background: rgba(245,166,35,.1);
+    border-color: var(--amarillo);
+}
+.modo-box input[type=radio] { margin-right: 8px; }
+.modo-box .label-title { font-weight: 700; font-size: .9rem; }
+.modo-box .label-desc  { font-size: .78rem; color: var(--text-secondary); margin-top: 4px; margin-left: 24px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="alert" style="background:rgba(11,59,110,.08);border-left:4px solid var(--azul-principal);border-radius:10px;padding:14px 18px;margin-bottom:20px;">
+    <strong style="color:var(--azul-principal);">
+        <i class="fas fa-shield-alt me-2"></i>Copias de seguridad del sistema
+    </strong>
+    <div style="font-size:.85rem;color:var(--text-secondary);margin-top:6px;">
+        Descarga periódicamente un respaldo completo de los datos. Si algo falla, puedes restaurar el sistema desde el archivo <code>.json</code>.
+    </div>
+</div>
+
+<div class="row g-4">
+
+    <!-- ═══ DESCARGA ═══ -->
+    <div class="col-12 col-lg-6">
+        <div class="respaldo-card download">
+            <h6><i class="fas fa-download"></i>Descargar Respaldo</h6>
+
+            <p style="font-size:.87rem;color:var(--text-secondary);">
+                Genera un archivo <strong>.json</strong> con <strong>todos</strong> los datos:
+                usuarios, entidades, permisos e historial completo de votos.
+            </p>
+
+            <table class="stats-table">
+                <tbody>
+                    <tr><td><i class="fas fa-users me-2" style="color:var(--azul-principal)"></i>Usuarios</td>           <td>{{ stats.users }}</td></tr>
+                    <tr><td><i class="fas fa-building-columns me-2" style="color:var(--azul-principal)"></i>Secretarías</td>  <td>{{ stats.secretarias }}</td></tr>
+                    <tr><td><i class="fas fa-university me-2" style="color:var(--azul-principal)"></i>Institutos</td>     <td>{{ stats.institutos }}</td></tr>
+                    <tr><td><i class="fas fa-people-roof me-2" style="color:var(--azul-principal)"></i>Jubilados</td>      <td>{{ stats.jubilados }}</td></tr>
+                    <tr><td><i class="fas fa-history me-2" style="color:var(--azul-principal)"></i>Historial Secretarías</td> <td>{{ stats.secretarias_history }}</td></tr>
+                    <tr><td><i class="fas fa-history me-2" style="color:var(--azul-principal)"></i>Historial Institutos</td>  <td>{{ stats.institutos_history }}</td></tr>
+                    <tr><td><i class="fas fa-history me-2" style="color:var(--azul-principal)"></i>Historial Jubilados</td>   <td>{{ stats.jubilados_history }}</td></tr>
+                </tbody>
+            </table>
+
+            <div style="margin-top:auto;">
+                <a href="{{ url_for('descargar_respaldo') }}" class="btn-respaldo btn-download w-100">
+                    <i class="fas fa-file-download"></i>Descargar Respaldo (.json)
+                </a>
+                <div style="font-size:.75rem;color:var(--text-secondary);margin-top:8px;text-align:center;">
+                    Se guarda también una copia local en <code>ultimo_respaldo.json</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ IMPORTAR ═══ -->
+    <div class="col-12 col-lg-6">
+        <div class="respaldo-card upload">
+            <h6><i class="fas fa-upload"></i>Importar Respaldo</h6>
+
+            <div class="alert alert-warning" style="font-size:.83rem;padding:10px 14px;border-radius:10px;">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Atención:</strong> Esto modificará la base de datos actual.
+                Si haces "<em>Reemplazar todo</em>", considera descargar primero un respaldo actual.
+            </div>
+
+            <form method="POST" action="{{ url_for('importar_respaldo') }}" enctype="multipart/form-data" id="formImport">
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:.83rem;font-weight:600;">
+                        <i class="fas fa-file-code me-1"></i>Archivo de respaldo (.json)
+                    </label>
+                    <input type="file" name="archivo" class="form-control" accept=".json,application/json" required id="fileInput">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:.83rem;font-weight:600;">Modo de importación</label>
+
+                    <label class="modo-box selected" id="box-reemplazar">
+                        <input type="radio" name="modo" value="reemplazar" checked onchange="updateModo()">
+                        <span class="label-title">Reemplazar todo</span>
+                        <div class="label-desc">
+                            Borra todos los datos actuales y los sustituye por el respaldo.
+                            <br><strong>Recomendado para restaurar una copia completa.</strong>
+                        </div>
+                    </label>
+
+                    <label class="modo-box" id="box-fusionar">
+                        <input type="radio" name="modo" value="fusionar" onchange="updateModo()">
+                        <span class="label-title">Fusionar</span>
+                        <div class="label-desc">
+                            Mantiene los datos actuales y agrega/actualiza los del respaldo.
+                            Útil para unir datos de dos instalaciones.
+                        </div>
+                    </label>
+                </div>
+
+                <div style="margin-top:auto;">
+                    <button type="submit" class="btn-respaldo btn-upload w-100" id="btnImport" onclick="return confirmarImport(event);">
+                        <i class="fas fa-upload"></i>Importar Respaldo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div style="background:var(--bg-secondary);border-radius:12px;padding:18px;font-size:.83rem;color:var(--text-secondary);">
+            <strong style="color:var(--text-primary);"><i class="fas fa-info-circle me-1"></i>Formatos aceptados</strong>
+            <ul style="margin:8px 0 0 20px;padding:0;">
+                <li>Solo archivos <code>.json</code> generados por este mismo sistema.</li>
+                <li>La estructura debe incluir la clave raíz <code>"app": "SCPN - Consulta Popular Nacional 2026"</code>.</li>
+                <li>Las contraseñas de usuario se guardan cifradas (SHA-256), nunca en texto plano.</li>
+                <li>Para mayor seguridad, el superusuario que realiza la importación nunca se elimina del sistema.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateModo() {
+    document.querySelectorAll('.modo-box').forEach(b => b.classList.remove('selected'));
+    const sel = document.querySelector('input[name="modo"]:checked');
+    if (sel) sel.closest('.modo-box').classList.add('selected');
+}
+
+function confirmarImport(e) {
+    const modo = document.querySelector('input[name="modo"]:checked').value;
+    const file = document.getElementById('fileInput').files[0];
+
+    if (!file) {
+        alert('Selecciona un archivo primero.');
+        e.preventDefault();
+        return false;
+    }
+
+    const fileMB = (file.size / 1024 / 1024).toFixed(2);
+    let msg;
+    if (modo === 'reemplazar') {
+        msg = '⚠️ MODO REEMPLAZAR TODO\n\n' +
+              'Se borrarán TODOS los datos actuales y se sustituirán por el contenido del archivo.\n\n' +
+              'Archivo: ' + file.name + ' (' + fileMB + ' MB)\n\n' +
+              'Esta acción NO se puede deshacer.\n\n¿Continuar?';
+    } else {
+        msg = 'MODO FUSIONAR\n\n' +
+              'Se agregarán/actualizarán los datos del archivo sobre los actuales.\n\n' +
+              'Archivo: ' + file.name + ' (' + fileMB + ' MB)\n\n¿Continuar?';
+    }
+
+    if (!confirm(msg)) {
+        e.preventDefault();
+        return false;
+    }
+
+    const btn = document.getElementById('btnImport');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando... (no cierres esta ventana)';
+    return true;
+}
+
+document.addEventListener('DOMContentLoaded', updateModo);
+</script>
+{% endblock %}

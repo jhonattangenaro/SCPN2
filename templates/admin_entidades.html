@@ -49,9 +49,22 @@
     {% for tipo, lista, campo in [('secretarias', secretarias, 'empleados'), ('institutos', institutos, 'empleados')] %}
     <div class="tab-pane fade {% if tipo=='secretarias' %}show active{% endif %}" id="tab{{ tipo[:3] | capitalize }}">
         <div class="stat-card p-0 overflow-hidden" style="border-radius:0 0 14px 14px">
-            <table class="table table-custom table-hover mb-0">
+            {% if session.is_superuser %}
+            <form method="POST" id="bulk-{{ tipo }}" action="/admin/entidades/{{ tipo }}/eliminar_multiple"
+                  class="d-flex align-items-center gap-2 p-2" style="border-bottom:1px solid var(--border-color,#e5e7eb)"
+                  onsubmit="return confirmBulk(this, '{{ tipo }}')">
+                <button type="submit" class="btn btn-sm btn-danger bulk-btn" disabled style="border-radius:8px">
+                    <i class="fas fa-trash me-1"></i>Eliminar seleccionadas (<span class="bulk-count">0</span>)
+                </button>
+                <small class="text-muted">Marca una o varias filas. Se borran también sus votos y permisos.</small>
+            </form>
+            {% endif %}
+            <table class="table table-custom table-hover mb-0" data-tipo="{{ tipo }}">
                 <thead>
                     <tr>
+                        {% if session.is_superuser %}
+                        <th style="width:36px"><input type="checkbox" class="form-check-input check-all" title="Seleccionar todas"></th>
+                        {% endif %}
                         <th>#</th>
                         <th>Nombre</th>
                         <th class="text-center">Total</th>
@@ -65,6 +78,9 @@
                 {% set tot = e[campo] %}
                 {% set pct = ((e.votos_reportados / tot * 100) if tot > 0 else 0) | round(1) %}
                 <tr>
+                    {% if session.is_superuser %}
+                    <td><input type="checkbox" class="form-check-input row-check" name="ids" value="{{ e.id }}" form="bulk-{{ tipo }}"></td>
+                    {% endif %}
                     <td class="text-muted" style="font-size:.78rem">{{ loop.index }}</td>
                     <td style="font-size:.85rem;font-weight:500">{{ e.name }}</td>
                     <td class="text-center fw-bold">{{ tot | int }}</td>
@@ -78,17 +94,19 @@
                                     data-bs-toggle="modal" data-bs-target="#editModal{{ tipo }}{{ e.id }}">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <form method="POST" action="/admin/entidades/{{ tipo }}/{{ e.id }}/eliminar" 
-                                  onsubmit="return confirm('¿Eliminar {{ e.name }}? Se borrarán todos sus registros.')">
+                            {% if session.is_superuser %}
+                            <form method="POST" action="/admin/entidades/{{ tipo }}/{{ e.id }}/eliminar"
+                                  onsubmit="return confirm({{ ('¿Eliminar ' ~ e.name ~ '? Se borrarán todos sus registros.') | tojson | forceescape }})">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" style="border-radius:6px;font-size:.72rem">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </form>
+                            {% endif %}
                         </div>
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="6" class="text-center py-4 text-muted">No hay registros en este módulo.</td></tr>
+                <tr><td colspan="7" class="text-center py-4 text-muted">No hay registros en este módulo.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
@@ -128,4 +146,36 @@
     {% endfor %}
     {% endfor %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function refreshBulk(table) {
+    const tipo = table.dataset.tipo;
+    const checks = table.querySelectorAll('.row-check');
+    const n = table.querySelectorAll('.row-check:checked').length;
+    const form = document.getElementById('bulk-' + tipo);
+    if (!form) return;
+    form.querySelector('.bulk-count').textContent = n;
+    form.querySelector('.bulk-btn').disabled = n === 0;
+    const all = table.querySelector('.check-all');
+    if (all) {
+        all.checked = n > 0 && n === checks.length;
+        all.indeterminate = n > 0 && n < checks.length;
+    }
+}
+document.querySelectorAll('table[data-tipo]').forEach(table => {
+    const all = table.querySelector('.check-all');
+    if (all) all.addEventListener('change', () => {
+        table.querySelectorAll('.row-check').forEach(c => c.checked = all.checked);
+        refreshBulk(table);
+    });
+    table.querySelectorAll('.row-check').forEach(c => c.addEventListener('change', () => refreshBulk(table)));
+});
+function confirmBulk(form, tipo) {
+    const n = document.querySelectorAll('table[data-tipo="' + tipo + '"] .row-check:checked').length;
+    if (!n) return false;
+    return confirm('¿Eliminar ' + n + ' entidad(es) de ' + tipo + '?\n\nSe borrarán también sus votos, historial y permisos asignados.\nEsta acción NO se puede deshacer.');
+}
+</script>
 {% endblock %}

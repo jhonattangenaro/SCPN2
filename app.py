@@ -122,7 +122,7 @@ def permission_required(module):
 # ---------- Init BD ----------
 def init_db():
     print(f"Inicializando BD en: {DATABASE}")
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, timeout=15)
     cursor = conn.cursor()
 
     cursor.executescript("""
@@ -233,7 +233,8 @@ except Exception as e:
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
+        # Agregamos timeout=15 para evitar bloqueos indefinidos si la BD está ocupada
+        db = g._database = sqlite3.connect(DATABASE, timeout=15)
         db.row_factory = sqlite3.Row
     return db
 
@@ -767,6 +768,7 @@ def importar_respaldo():
     try:
         if modo == 'reemplazar':
             db.execute("PRAGMA foreign_keys = OFF")
+            db.commit()  # <-- IMPORTANTE: Forzar commit para que el PRAGMA tenga efecto antes de borrar
             for t in reversed(tablas_orden):
                 try:
                     db.execute(f"DELETE FROM {t}")
@@ -836,8 +838,12 @@ def importar_respaldo():
                 )
                 db.commit()
 
-        resumen = ' · '.join([f"{k}: {v}" for k, v in totales.items() if v])
-        flash(f'✅ Respaldo importado correctamente (modo: {modo}). {resumen}', 'success')
+        # Verificar si realmente se importó algo
+        if not any(totales.values()):
+            flash('⚠️ No se importaron datos. Verifica que el archivo contenga registros válidos.', 'warning')
+        else:
+            resumen = ' · '.join([f"{k}: {v}" for k, v in totales.items() if v])
+            flash(f'✅ Respaldo importado correctamente (modo: {modo}). {resumen}', 'success')
 
     except Exception as e:
         db.rollback()

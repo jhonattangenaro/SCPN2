@@ -26,10 +26,7 @@ logger = logging.getLogger(__name__)
 
 export_bp = Blueprint('export', __name__)
 
-if os.environ.get('RENDER'):
-    DATABASE = '/tmp/elecciones.db'
-else:
-    DATABASE = 'elecciones.db'
+from config import DATABASE
 
 # Colores institucionales
 AZUL_PRINCIPAL = '#0B3B6E'

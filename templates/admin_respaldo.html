@@ -129,7 +129,7 @@
                 Si haces "<em>Reemplazar todo</em>", considera descargar primero un respaldo actual.
             </div>
 
-            <form method="POST" action="{{ url_for('importar_respaldo') }}" enctype="multipart/form-data" id="formImport">
+            <form method="POST" action="{{ url_for('importar_respaldo') }}" enctype="multipart/form-data" id="formImport" onsubmit="return enviarImport(event);">
                 <div class="mb-3">
                     <label class="form-label" style="font-size:.83rem;font-weight:600;">
                         <i class="fas fa-file-code me-1"></i>Archivo de respaldo (.json)
@@ -160,7 +160,12 @@
                 </div>
 
                 <div style="margin-top:auto;">
-                    <button type="submit" class="btn-respaldo btn-upload w-100" id="btnImport" onclick="return confirmarImport(event);">
+                    <div id="importProgress" style="display:none;margin-bottom:10px">
+                        <div class="progress" style="height:10px;border-radius:6px"><div id="importBar" class="progress-bar" style="width:0%;background:#d97706"></div></div>
+                        <div id="importStatus" style="font-size:.78rem;margin-top:6px;color:var(--text-secondary)"></div>
+                    </div>
+                    <div id="importResult" class="alert" style="display:none;font-size:.83rem;border-radius:10px"></div>
+                    <button type="submit" class="btn-respaldo btn-upload w-100" id="btnImport">
                         <i class="fas fa-upload"></i>Importar Respaldo
                     </button>
                 </div>
@@ -194,48 +199,57 @@ function updateModo() {
     if (sel) sel.closest('.modo-box').classList.add('selected');
 }
 
-function confirmarImport(e) {
+function enviarImport(e) {
+    e.preventDefault();
     const modo = document.querySelector('input[name="modo"]:checked').value;
     const file = document.getElementById('fileInput').files[0];
-
-    if (!file) {
-        alert('Selecciona un archivo primero.');
-        e.preventDefault();
-        return false;
-    }
+    if (!file) { alert('Selecciona un archivo primero.'); return false; }
 
     const fileMB = (file.size / 1024 / 1024).toFixed(2);
-    let msg;
-    if (modo === 'reemplazar') {
-        msg = '⚠️ MODO REEMPLAZAR TODO\n\n' +
-              'Se borrarán TODOS los datos actuales y se sustituirán por el contenido del archivo.\n\n' +
-              'Archivo: ' + file.name + ' (' + fileMB + ' MB)\n\n' +
-              'Esta acción NO se puede deshacer.\n\n¿Continuar?';
-    } else {
-        msg = 'MODO FUSIONAR\n\n' +
-              'Se agregarán/actualizarán los datos del archivo sobre los actuales.\n\n' +
-              'Archivo: ' + file.name + ' (' + fileMB + ' MB)\n\n¿Continuar?';
-    }
-
-    if (!confirm(msg)) {
-        e.preventDefault();
-        return false;
-    }
+    const msg = (modo === 'reemplazar'
+        ? '⚠️ MODO REEMPLAZAR TODO\n\nSe borrarán TODOS los datos actuales y se sustituirán por el contenido del archivo.\n\n'
+        : 'MODO FUSIONAR\n\nSe agregarán/actualizarán los datos del archivo sobre los actuales.\n\n')
+        + 'Archivo: ' + file.name + ' (' + fileMB + ' MB)\n\n¿Continuar?';
+    if (!confirm(msg)) return false;
 
     const btn = document.getElementById('btnImport');
+    const bar = document.getElementById('importBar');
+    const st  = document.getElementById('importStatus');
+    const res = document.getElementById('importResult');
+    document.getElementById('importProgress').style.display = 'block';
+    res.style.display = 'none';
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando... (no cierres esta ventana)';
-    
-    // NUEVO: Reactivar el botón y avisar si tarda más de 30 segundos
-    setTimeout(() => {
-        if (btn.disabled) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-upload"></i> Importar Respaldo';
-            alert('La importación está tardando más de lo esperado. Por favor, revisa la consola de Render o intenta de nuevo.');
-        }
-    }, 30000);
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...';
 
-    return true;
+    const xhr = new XMLHttpRequest();         // sin límite de tiempo (timeout = 0)
+    xhr.open('POST', document.getElementById('formImport').action);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.timeout = 0;
+
+    xhr.upload.onprogress = ev => {
+        if (ev.lengthComputable) {
+            const p = Math.round(ev.loaded / ev.total * 100);
+            bar.style.width = p + '%';
+            st.textContent = p < 100 ? 'Subiendo archivo… ' + p + '%' : 'Archivo subido. Procesando en el servidor…';
+        }
+    };
+    const terminar = (ok, texto) => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-upload"></i>Importar Respaldo';
+        res.className = 'alert ' + (ok ? 'alert-success' : 'alert-danger');
+        res.textContent = texto;
+        res.style.display = 'block';
+        if (ok) { st.textContent = 'Listo. Recargando…'; setTimeout(() => location.reload(), 2500); }
+    };
+    xhr.onload = () => {
+        let d = null;
+        try { d = JSON.parse(xhr.responseText); } catch (_) {}
+        if (d) terminar(d.ok, d.message);
+        else terminar(false, 'Respuesta inesperada del servidor (HTTP ' + xhr.status + '). Revisa los logs de Render.');
+    };
+    xhr.onerror = () => terminar(false, 'Se perdió la conexión con el servidor (posible reinicio de Render). Intenta de nuevo.');
+    xhr.send(new FormData(document.getElementById('formImport')));
+    return false;
 }
 
 document.addEventListener('DOMContentLoaded', updateModo);

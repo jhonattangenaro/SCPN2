@@ -741,13 +741,22 @@ def descargar_respaldo():
 @app.route('/admin/respaldo/importar', methods=['POST'])
 @admin_required
 def importar_respaldo():
+    ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    t0 = datetime.now()
+
+    def fin(msg, cat):
+        print(f"[IMPORTAR] {cat.upper()}: {msg}", flush=True)
+        if ajax:
+            return jsonify(ok=(cat == 'success'), message=msg)
+        flash(msg, cat)
+        return redirect(url_for('admin_respaldo'))
+
+    print(f"[IMPORTAR] Petición recibida ({request.content_length or 0} bytes)", flush=True)
     archivo = request.files.get('archivo')
     if not archivo or not archivo.filename:
-        flash('No se seleccionó ningún archivo.', 'danger')
-        return redirect(url_for('admin_respaldo'))
+        return fin('No se seleccionó ningún archivo.', 'danger')
     if not archivo.filename.lower().endswith('.json'):
-        flash('El archivo debe tener extensión .json', 'danger')
-        return redirect(url_for('admin_respaldo'))
+        return fin('El archivo debe tener extensión .json', 'danger')
 
     modo = request.form.get('modo', 'reemplazar')
     if modo not in ('reemplazar', 'fusionar'):
@@ -756,15 +765,12 @@ def importar_respaldo():
     try:
         data = json.loads(archivo.read().decode('utf-8-sig'))
     except Exception as e:
-        flash(f'Error al leer el JSON: {e}', 'danger')
-        return redirect(url_for('admin_respaldo'))
+        return fin(f'Error al leer el JSON: {e}', 'danger')
 
     if not isinstance(data, dict) or not isinstance(data.get('datos'), dict):
-        flash('Estructura de respaldo inválida (falta la clave "datos").', 'danger')
-        return redirect(url_for('admin_respaldo'))
+        return fin('Estructura de respaldo inválida (falta la clave "datos").', 'danger')
     if not str(data.get('app', '')).startswith('SCPN'):
-        flash('Este archivo no parece ser un respaldo de SCPN.', 'danger')
-        return redirect(url_for('admin_respaldo'))
+        return fin('Este archivo no parece ser un respaldo de SCPN.', 'danger')
 
     tablas_orden = [
         'users', 'secretarias', 'institutos', 'jubilados',
@@ -834,17 +840,16 @@ def importar_respaldo():
 
         conn.execute("COMMIT")
         resumen = ' · '.join(f"{k}: {v}" for k, v in totales.items() if v)
-        flash(f'✅ Respaldo importado correctamente (modo: {modo}). {resumen}', 'success')
+        msg_ok = f'✅ Respaldo importado correctamente (modo: {modo}, {(datetime.now()-t0).total_seconds():.1f}s). {resumen}'
     except Exception as e:
         try:
             conn.execute("ROLLBACK")
         except Exception:
             pass
-        flash(f'❌ Error al importar el respaldo (no se modificó nada): {e}', 'danger')
-    finally:
         conn.close()
-
-    return redirect(url_for('admin_respaldo'))
+        return fin(f'❌ Error al importar el respaldo (no se modificó nada): {e}', 'danger')
+    conn.close()
+    return fin(msg_ok, 'success')
 
 # ---------- Módulos ----------
 @app.route('/secretarias')

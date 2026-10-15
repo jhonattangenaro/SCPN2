@@ -1,4 +1,4 @@
-# app.py - Versión 2.9 con Turso (SQLite en la nube)
+# app.py - Versión 2.8 con respaldo JSON
 import sqlite3
 import os
 import json
@@ -10,37 +10,24 @@ from flask import Flask, render_template, request, jsonify, g, session, redirect
 from datetime import datetime, timedelta
 from functools import wraps
 
-# 🔵 TURSO: importar cliente libsql (SQLite en la nube)
-try:
-    import libsql_experimental as libsql
-    LIBSQL_DISPONIBLE = True
-except ImportError:
-    LIBSQL_DISPONIBLE = False
-    print("⚠️  libsql_experimental no instalado. Solo SQLite local disponible.")
-
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
 
-# ---------- Configuración BD ----------
-# 🔵 TURSO: leer credenciales desde variables de entorno
-TURSO_URL   = os.environ.get('TURSO_DATABASE_URL')
-TURSO_TOKEN = os.environ.get('TURSO_AUTH_TOKEN')
-
-if TURSO_URL and TURSO_TOKEN and LIBSQL_DISPONIBLE:
-    USAR_TURSO = True
-    DATABASE = TURSO_URL  # solo informativo
-    print(f"✅ Usando Turso (SQLite en la nube): {TURSO_URL}")
+# ---------- Base de datos ----------
+if os.path.exists('/home'):
+    # PythonAnywhere o Linux con home persistente
+    HOME = os.path.expanduser('~')
+    DATABASE = os.path.join(HOME, 'SCPN', 'elecciones.db') if os.path.exists(os.path.join(HOME, 'SCPN')) else 'elecciones.db'
+elif os.path.exists('/data'):
+    DATABASE = '/data/elecciones.db'
+    if not os.path.exists(DATABASE) and os.path.exists('elecciones.db'):
+        shutil.copy('elecciones.db', DATABASE)
+        print("✅ Base de datos copiada exitosamente al disco persistente en /data")
+elif os.environ.get('RENDER'):
+    DATABASE = '/tmp/elecciones.db'
 else:
-    USAR_TURSO = False
-    # Fallback a SQLite local
-    if os.path.exists('/data'):
-        DATABASE = '/data/elecciones.db'
-    elif os.environ.get('RENDER'):
-        DATABASE = '/tmp/elecciones.db'
-    else:
-        DATABASE = 'elecciones.db'
-    print(f"⚠️  Usando SQLite local en: {DATABASE}")
+    DATABASE = 'elecciones.db'
 
 SECRETARIAS_INICIALES = [
     ("DESPACHO DEL GOBERNADOR", 192),
@@ -132,130 +119,106 @@ def permission_required(module):
         return decorated
     return decorator
 
-# ---------- Helpers de conexión ----------
-def _crear_conexion():
-    """Crea una conexión a Turso o a SQLite local según configuración."""
-    if USAR_TURSO:
-        conn = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
-        conn.row_factory = sqlite3.Row
-        return conn
-    else:
-        conn = sqlite3.connect(DATABASE, timeout=15)
-        conn.row_factory = sqlite3.Row
-        return conn
-
 # ---------- Init BD ----------
 def init_db():
-    print(f"Inicializando BD...")
+    print(f"Inicializando BD en: {DATABASE}")
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+    cursor.executescript("""
+        CREATE TABLE IF NOT EXISTS users (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            username     TEXT    UNIQUE NOT NULL,
+            password     TEXT    NOT NULL,
+            full_name    TEXT    NOT NULL,
+            is_superuser INTEGER NOT NULL DEFAULT 0,
+            is_full_access INTEGER NOT NULL DEFAULT 0,
+            is_active    INTEGER NOT NULL DEFAULT 1,
+            created_at   TEXT    NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS user_permissions (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id  INTEGER NOT NULL,
+            module   TEXT    NOT NULL,
+            can_view INTEGER NOT NULL DEFAULT 0,
+            can_edit INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            UNIQUE(user_id, module)
+        );
+        CREATE TABLE IF NOT EXISTS user_entity_permissions (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            module     TEXT    NOT NULL,
+            entity_id  INTEGER NOT NULL,
+            can_edit   INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            UNIQUE(user_id, module, entity_id)
+        );
+        CREATE TABLE IF NOT EXISTS secretarias (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            name             TEXT    UNIQUE NOT NULL,
+            empleados        INTEGER NOT NULL DEFAULT 0,
+            votos_reportados INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS institutos (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            name             TEXT    UNIQUE NOT NULL,
+            empleados        INTEGER NOT NULL DEFAULT 0,
+            votos_reportados INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS jubilados (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            name             TEXT    UNIQUE NOT NULL,
+            total            INTEGER NOT NULL DEFAULT 0,
+            votos_reportados INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS secretarias_history (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            entidad_id    INTEGER NOT NULL,
+            timestamp     TEXT    NOT NULL,
+            votos_sumados INTEGER NOT NULL,
+            user_id       INTEGER,
+            FOREIGN KEY (entidad_id) REFERENCES secretarias(id)
+        );
+        CREATE TABLE IF NOT EXISTS institutos_history (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            entidad_id    INTEGER NOT NULL,
+            timestamp     TEXT    NOT NULL,
+            votos_sumados INTEGER NOT NULL,
+            user_id       INTEGER,
+            FOREIGN KEY (entidad_id) REFERENCES institutos(id)
+        );
+        CREATE TABLE IF NOT EXISTS jubilados_history (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            entidad_id    INTEGER NOT NULL,
+            timestamp     TEXT    NOT NULL,
+            votos_sumados INTEGER NOT NULL,
+            user_id       INTEGER,
+            FOREIGN KEY (entidad_id) REFERENCES jubilados(id)
+        );
+    """)
+
     try:
-        conn = _crear_conexion()
-        cursor = conn.cursor()
+        cursor.execute("ALTER TABLE users ADD COLUMN is_full_access INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
 
-        cursor.executescript("""
-            CREATE TABLE IF NOT EXISTS users (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                username     TEXT    UNIQUE NOT NULL,
-                password     TEXT    NOT NULL,
-                full_name    TEXT    NOT NULL,
-                is_superuser INTEGER NOT NULL DEFAULT 0,
-                is_full_access INTEGER NOT NULL DEFAULT 0,
-                is_active    INTEGER NOT NULL DEFAULT 1,
-                created_at   TEXT    NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS user_permissions (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id  INTEGER NOT NULL,
-                module   TEXT    NOT NULL,
-                can_view INTEGER NOT NULL DEFAULT 0,
-                can_edit INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                UNIQUE(user_id, module)
-            );
-            CREATE TABLE IF NOT EXISTS user_entity_permissions (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id    INTEGER NOT NULL,
-                module     TEXT    NOT NULL,
-                entity_id  INTEGER NOT NULL,
-                can_edit   INTEGER NOT NULL DEFAULT 1,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                UNIQUE(user_id, module, entity_id)
-            );
-            CREATE TABLE IF NOT EXISTS secretarias (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                name             TEXT    UNIQUE NOT NULL,
-                empleados        INTEGER NOT NULL DEFAULT 0,
-                votos_reportados INTEGER NOT NULL DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS institutos (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                name             TEXT    UNIQUE NOT NULL,
-                empleados        INTEGER NOT NULL DEFAULT 0,
-                votos_reportados INTEGER NOT NULL DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS jubilados (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                name             TEXT    UNIQUE NOT NULL,
-                total            INTEGER NOT NULL DEFAULT 0,
-                votos_reportados INTEGER NOT NULL DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS secretarias_history (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                entidad_id    INTEGER NOT NULL,
-                timestamp     TEXT    NOT NULL,
-                votos_sumados INTEGER NOT NULL,
-                user_id       INTEGER,
-                FOREIGN KEY (entidad_id) REFERENCES secretarias(id)
-            );
-            CREATE TABLE IF NOT EXISTS institutos_history (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                entidad_id    INTEGER NOT NULL,
-                timestamp     TEXT    NOT NULL,
-                votos_sumados INTEGER NOT NULL,
-                user_id       INTEGER,
-                FOREIGN KEY (entidad_id) REFERENCES institutos(id)
-            );
-            CREATE TABLE IF NOT EXISTS jubilados_history (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                entidad_id    INTEGER NOT NULL,
-                timestamp     TEXT    NOT NULL,
-                votos_sumados INTEGER NOT NULL,
-                user_id       INTEGER,
-                FOREIGN KEY (entidad_id) REFERENCES jubilados(id)
-            );
-        """)
+    existing = cursor.execute("SELECT id FROM users WHERE username='admin'").fetchone()
+    if not existing:
+        cursor.execute(
+            "INSERT INTO users (username, password, full_name, is_superuser, is_full_access, created_at) VALUES (?,?,?,1,0,?)",
+            ('admin', hash_password('admin123'), 'Administrador del Sistema', datetime.now().isoformat())
+        )
+        print("✅ Superusuario 'admin' creado (contraseña: admin123)")
 
-        # Agregar columna is_full_access si no existe (migración)
-        try:
-            cursor.execute("ALTER TABLE users ADD COLUMN is_full_access INTEGER DEFAULT 0")
-        except Exception:
-            pass
+    for name, emp in SECRETARIAS_INICIALES:
+        cursor.execute(
+            "INSERT OR IGNORE INTO secretarias (name, empleados) VALUES (?,?)", (name, emp)
+        )
 
-        # Crear admin si no existe
-        existing = cursor.execute("SELECT id FROM users WHERE username='admin'").fetchone()
-        if not existing:
-            cursor.execute(
-                "INSERT INTO users (username, password, full_name, is_superuser, is_full_access, created_at) VALUES (?,?,?,1,0,?)",
-                ('admin', hash_password('admin123'), 'Administrador del Sistema', datetime.now().isoformat())
-            )
-            print("✅ Superusuario 'admin' creado (contraseña: admin123)")
-
-        # Insertar secretarías iniciales
-        for name, emp in SECRETARIAS_INICIALES:
-            try:
-                cursor.execute(
-                    "INSERT OR IGNORE INTO secretarias (name, empleados) VALUES (?,?)", (name, emp)
-                )
-            except Exception:
-                pass
-
-        conn.commit()
-        conn.close()
-        print("✅ Base de datos inicializada")
-
-    except Exception as e:
-        print(f"❌ Error inicializando BD: {e}")
-        import traceback
-        traceback.print_exc()
+    conn.commit()
+    conn.close()
+    print("✅ Base de datos inicializada")
 
 init_db()
 
@@ -270,17 +233,15 @@ except Exception as e:
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
-        db = g._database = _crear_conexion()
+        db = g._database = sqlite3.connect(DATABASE)
+        db.row_factory = sqlite3.Row
     return db
 
 @app.teardown_appcontext
 def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
-        try:
-            db.close()
-        except Exception:
-            pass
+        db.close()
 
 @app.before_request
 def refresh_entity_modules():
@@ -334,7 +295,7 @@ def can_edit_entity(user_id, module, entity_id):
     ).fetchone()
     return bool(ep and ep['can_edit'])
 
-# ---------- API stats ----------
+# ---------- API stats (SIN jubilados) ----------
 @app.route('/api/stats')
 @login_required
 def api_stats():
@@ -346,6 +307,7 @@ def api_stats():
         'institutos':  {'total': ri['te'], 'votos': ri['tv']},
     })
 
+# ---------- API: todas las entidades ----------
 @app.route('/api/entidades_todas')
 @login_required
 def api_entidades_todas():
@@ -656,8 +618,6 @@ def crear_entidad():
         flash(f'Ya existe una entidad con ese nombre en {tipo}.', 'danger')
     except ValueError:
         flash('El total debe ser un número.', 'danger')
-    except Exception as e:
-        flash(f'Error: {e}', 'danger')
     return redirect(url_for('admin_entidades'))
 
 @app.route('/admin/entidades/<tipo>/<int:eid>/editar', methods=['POST'])
@@ -739,6 +699,15 @@ def descargar_respaldo():
             print(f"⚠ Error exportando {tabla}: {e}")
             backup['datos'][tabla] = []
 
+    # Guardar copia local adicional
+    try:
+        carpeta = os.path.dirname(os.path.abspath(DATABASE))
+        ruta_copia = os.path.join(carpeta, 'ultimo_respaldo.json')
+        with open(ruta_copia, 'w', encoding='utf-8') as f:
+            json.dump(backup, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠ No se pudo guardar copia local del respaldo: {e}")
+
     json_bytes = json.dumps(backup, ensure_ascii=False, indent=2).encode('utf-8')
     fname = f"respaldo_scpn_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     return Response(
@@ -781,48 +750,32 @@ def importar_respaldo():
         flash('Este archivo no parece ser un respaldo de SCPN.', 'danger')
         return redirect(url_for('admin_respaldo'))
 
-    # 🔵 TURSO: usamos una conexión dedicada y borrado en orden respetando FK
-    # (Turso no soporta bien PRAGMA foreign_keys=OFF, así que borramos en orden correcto)
-    tablas_borrado = [
-        # Hijos primero (respetando FKs)
-        'secretarias_history', 'institutos_history', 'jubilados_history',
-        'user_permissions', 'user_entity_permissions',
-        'users', 'secretarias', 'institutos', 'jubilados'
-    ]
-    tablas_insercion = [
-        # Padres primero
+    db = get_db()
+    tablas_orden = [
         'users', 'secretarias', 'institutos', 'jubilados',
         'user_permissions', 'user_entity_permissions',
         'secretarias_history', 'institutos_history', 'jubilados_history'
     ]
 
-    try:
-        conn = _crear_conexion()
-    except Exception as e:
-        flash(f'❌ No se pudo conectar a la BD: {e}', 'danger')
-        return redirect(url_for('admin_respaldo'))
+    # Preservar admin actual
+    admin_actual = None
+    if session.get('user_id'):
+        row = db.execute("SELECT * FROM users WHERE id=?", (session['user_id'],)).fetchone()
+        if row:
+            admin_actual = dict(row)
 
     try:
-        # Preservar admin actual
-        admin_actual = None
-        if session.get('user_id'):
-            row = conn.execute("SELECT * FROM users WHERE id=?", (session['user_id'],)).fetchone()
-            if row:
-                admin_actual = dict(row)
-
-        # ── Borrado en orden correcto ──
         if modo == 'reemplazar':
-            for t in tablas_borrado:
+            db.execute("PRAGMA foreign_keys = OFF")
+            for t in reversed(tablas_orden):
                 try:
-                    conn.execute(f"DELETE FROM {t}")
-                    print(f"✅ Borrado: {t}")
+                    db.execute(f"DELETE FROM {t}")
                 except Exception as e:
                     print(f"⚠ No se pudo borrar {t}: {e}")
-            conn.commit()
+            db.commit()
 
-        # ── Inserción en orden correcto ──
         totales = {}
-        for tabla in tablas_insercion:
+        for tabla in tablas_orden:
             rows = data['datos'].get(tabla, [])
             if not isinstance(rows, list):
                 totales[tabla] = 0
@@ -839,69 +792,56 @@ def importar_respaldo():
 
                 try:
                     if modo == 'reemplazar':
-                        conn.execute(f"INSERT INTO {tabla} ({col_names}) VALUES ({placeholders})", valores)
+                        db.execute(f"INSERT INTO {tabla} ({col_names}) VALUES ({placeholders})", valores)
                         insertados += 1
                     else:
                         if 'id' in row:
-                            existe = conn.execute(f"SELECT 1 FROM {tabla} WHERE id=?", (row['id'],)).fetchone()
+                            existe = db.execute(f"SELECT 1 FROM {tabla} WHERE id=?", (row['id'],)).fetchone()
                             if existe:
                                 set_clause = ','.join(f'"{c}"=?' for c in cols if c != 'id')
                                 update_vals = [row[c] for c in cols if c != 'id'] + [row['id']]
-                                conn.execute(f"UPDATE {tabla} SET {set_clause} WHERE id=?", update_vals)
+                                db.execute(f"UPDATE {tabla} SET {set_clause} WHERE id=?", update_vals)
                                 insertados += 1
                                 continue
-                        conn.execute(f"INSERT INTO {tabla} ({col_names}) VALUES ({placeholders})", valores)
+                        db.execute(f"INSERT INTO {tabla} ({col_names}) VALUES ({placeholders})", valores)
                         insertados += 1
+                except sqlite3.IntegrityError as ie:
+                    print(f"⚠ Conflicto en {tabla}: {ie}")
                 except Exception as e:
-                    print(f"⚠ Error en {tabla}: {e}")
+                    print(f"⚠ Error insertando en {tabla}: {e}")
 
             totales[tabla] = insertados
-            print(f"📥 {tabla}: {insertados} registros")
 
-        # Reajustar AUTOINCREMENT (solo SQLite local soporta sqlite_sequence)
-        if not USAR_TURSO:
-            for tabla in tablas_insercion:
-                try:
-                    maxid = conn.execute(f"SELECT COALESCE(MAX(id),0) m FROM {tabla}").fetchone()['m']
-                    conn.execute("UPDATE sqlite_sequence SET seq=? WHERE name=?", (maxid, tabla))
-                except Exception:
-                    pass
+        # Reajustar AUTOINCREMENT
+        for tabla in tablas_orden:
+            try:
+                maxid = db.execute(f"SELECT COALESCE(MAX(id),0) m FROM {tabla}").fetchone()['m']
+                db.execute("UPDATE sqlite_sequence SET seq=? WHERE name=?", (maxid, tabla))
+            except Exception:
+                pass
+
+        db.execute("PRAGMA foreign_keys = ON")
+        db.commit()
 
         # Reinsertar admin si fue borrado
         if modo == 'reemplazar' and admin_actual:
-            existe = conn.execute("SELECT id FROM users WHERE id=?", (admin_actual['id'],)).fetchone()
+            existe = db.execute("SELECT id FROM users WHERE id=?", (admin_actual['id'],)).fetchone()
             if not existe:
-                conn.execute(
+                db.execute(
                     "INSERT INTO users (id, username, password, full_name, is_superuser, is_full_access, is_active, created_at) "
                     "VALUES (?,?,?,?,1,?,1,?)",
                     (admin_actual['id'], admin_actual['username'], admin_actual['password'],
                      admin_actual['full_name'], admin_actual.get('is_full_access', 0),
                      admin_actual['created_at'])
                 )
-                print(f"✅ Admin reinsertado")
+                db.commit()
 
-        conn.commit()
-        print(f"✅ Importación completada. Totales: {totales}")
-
-        if not any(totales.values()):
-            flash('⚠️ No se importaron datos. Verifica que el archivo contenga registros válidos.', 'warning')
-        else:
-            resumen = ' · '.join([f"{k}: {v}" for k, v in totales.items() if v])
-            flash(f'✅ Respaldo importado correctamente (modo: {modo}). {resumen}', 'success')
+        resumen = ' · '.join([f"{k}: {v}" for k, v in totales.items() if v])
+        flash(f'✅ Respaldo importado correctamente (modo: {modo}). {resumen}', 'success')
 
     except Exception as e:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        import traceback
-        traceback.print_exc()
+        db.rollback()
         flash(f'❌ Error al importar el respaldo: {e}', 'danger')
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
 
     return redirect(url_for('admin_respaldo'))
 
@@ -1006,7 +946,7 @@ def delete_voto_instituto(eid, hid):
         return jsonify({'status': 'error', 'message': 'Sin permisos'}), 403
     return _delete_voto(get_db(), 'institutos', eid, hid, 'empleados', 'institutos_history')
 
-# ---------- Rutas de Jubilados ----------
+# ---------- Rutas de Jubilados (ocultas en UI) ----------
 @app.route('/jubilados')
 @login_required
 @permission_required('jubilados')
@@ -1088,8 +1028,8 @@ def _delete_voto(db, tabla, eid, hid, campo_total, history_table):
         return jsonify({'status': 'error', 'message': 'Registro no encontrado'}), 404
     db.execute(f"DELETE FROM {history_table} WHERE id=?", (hid,))
     total = db.execute(
-        f"SELECT COALESCE(SUM(votos_sumados),0) AS s FROM {history_table} WHERE entidad_id=?", (eid,)
-    ).fetchone()['s']
+        f"SELECT COALESCE(SUM(votos_sumados),0) FROM {history_table} WHERE entidad_id=?", (eid,)
+    ).fetchone()[0]
     db.execute(f"UPDATE {tabla} SET votos_reportados=? WHERE id=?", (total, eid))
     db.commit()
     history = db.execute(
@@ -1154,8 +1094,7 @@ def api_stats_entidades():
 
 @app.route('/test')
 def test():
-    modo = "Turso (nube)" if USAR_TURSO else "SQLite local"
-    return f"✅ App v2.9 funcionando — Modo: {modo}"
+    return "✅ App v2.8 funcionando"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8060))

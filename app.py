@@ -16,6 +16,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
 
 # ---------- Base de datos ----------
 from config import DATABASE
+import database
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024  # respaldos de hasta 64 MB
 
 SECRETARIAS_INICIALES = [
@@ -110,8 +111,8 @@ def permission_required(module):
 
 # ---------- Init BD ----------
 def init_db():
-    print(f"Inicializando BD en: {DATABASE}")
-    conn = sqlite3.connect(DATABASE)
+    print(f"Inicializando BD en: {database.describe()}", flush=True)
+    conn = database.connect()
     cursor = conn.cursor()
 
     cursor.executescript("""
@@ -200,10 +201,15 @@ def init_db():
         )
         print("✅ Superusuario 'admin' creado (contraseña: admin123)")
 
-    for name, emp in SECRETARIAS_INICIALES:
-        cursor.execute(
-            "INSERT OR IGNORE INTO secretarias (name, empleados) VALUES (?,?)", (name, emp)
-        )
+    # Las secretarías iniciales se cargan UNA sola vez; así, si las eliminas,
+    # no reaparecen al reiniciar la app.
+    cursor.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+    if not cursor.execute("SELECT 1 FROM meta WHERE key='secretarias_seeded'").fetchone():
+        for name, emp in SECRETARIAS_INICIALES:
+            cursor.execute(
+                "INSERT OR IGNORE INTO secretarias (name, empleados) VALUES (?,?)", (name, emp)
+            )
+        cursor.execute("INSERT OR IGNORE INTO meta (key, value) VALUES ('secretarias_seeded','1')")
 
     conn.commit()
     conn.close()
@@ -222,8 +228,7 @@ except Exception as e:
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
-        db = g._database = sqlite3.connect(DATABASE, timeout=30)
-        db.row_factory = sqlite3.Row
+        db = g._database = database.connect()
     return db
 
 @app.teardown_appcontext
@@ -778,9 +783,7 @@ def importar_respaldo():
         'secretarias_history', 'institutos_history', 'jubilados_history'
     ]
 
-    # Conexión propia, en modo manual: UNA sola transacción para todo el proceso
-    conn = sqlite3.connect(DATABASE, timeout=30, isolation_level=None)
-    conn.row_factory = sqlite3.Row
+    conn = get_db()
     admin_actual = None
     if session.get('user_id'):
         row = conn.execute("SELECT * FROM users WHERE id=?", (session['user_id'],)).fetchone()
@@ -788,9 +791,6 @@ def importar_respaldo():
 
     totales = {}
     try:
-        conn.execute("PRAGMA foreign_keys = OFF")
-        conn.execute("BEGIN IMMEDIATE")
-
         if modo == 'reemplazar':
             for t in reversed(tablas_orden):
                 conn.execute(f"DELETE FROM {t}")
@@ -810,13 +810,17 @@ def importar_respaldo():
                 if cols:
                     lotes.setdefault(cols, []).append([row[c] for c in cols])
 
+            verbo = 'INSERT OR REPLACE' if modo == 'fusionar' else 'INSERT OR IGNORE'
             insertados = 0
             for cols, valores in lotes.items():
                 col_names = ','.join(f'"{c}"' for c in cols)
-                marks = ','.join('?' * len(cols))
-                # INSERT OR REPLACE: en "fusionar" actualiza por id; en "reemplazar" la tabla está vacía
-                verbo = 'INSERT OR REPLACE' if modo == 'fusionar' else 'INSERT OR IGNORE'
-                conn.executemany(f"{verbo} INTO {tabla} ({col_names}) VALUES ({marks})", valores)
+                una = '(' + ','.join('?' * len(cols)) + ')'
+                por_lote = max(1, 900 // len(cols))        # límite de variables por sentencia
+                # Inserciones de varias filas por sentencia: pocas idas y vueltas (importante con Turso)
+                for i in range(0, len(valores), por_lote):
+                    chunk = valores[i:i + por_lote]
+                    params = [v for fila in chunk for v in fila]
+                    conn.execute(f"{verbo} INTO {tabla} ({col_names}) VALUES " + ','.join([una] * len(chunk)), params)
                 insertados += len(valores)
             totales[tabla] = insertados
 
@@ -838,17 +842,16 @@ def importar_respaldo():
             maxid = conn.execute(f"SELECT COALESCE(MAX(id),0) FROM {tabla}").fetchone()[0]
             conn.execute("UPDATE sqlite_sequence SET seq=? WHERE name=?", (maxid, tabla))
 
-        conn.execute("COMMIT")
+        conn.commit()
+        try:
+            conn.sync()
+        except Exception as e:
+            print(f"[IMPORTAR] aviso al sincronizar: {e}", flush=True)
         resumen = ' · '.join(f"{k}: {v}" for k, v in totales.items() if v)
         msg_ok = f'✅ Respaldo importado correctamente (modo: {modo}, {(datetime.now()-t0).total_seconds():.1f}s). {resumen}'
     except Exception as e:
-        try:
-            conn.execute("ROLLBACK")
-        except Exception:
-            pass
-        conn.close()
+        conn.rollback()
         return fin(f'❌ Error al importar el respaldo (no se modificó nada): {e}', 'danger')
-    conn.close()
     return fin(msg_ok, 'success')
 
 # ---------- Módulos ----------

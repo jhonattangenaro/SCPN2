@@ -663,8 +663,8 @@ function renderMainChart() {
                     }
                 },
                 scales: {
-                    x: { stacked: true, grid: { display: false }, ticks: { autoSkip: false, font: { size: mainView === 'ambos' ? 13 : 10 }, maxRotation: mainView === 'ambos' ? 0 : 60 } },
-                    y: { stacked: true, grid: { color: getComputedStyle(document.body).getPropertyValue('--chart-grid-color') }, ticks: { font: { size: 11 } } }
+                    x: { stacked: true, grid: { display: false, drawBorder: false }, ticks: { autoSkip: false, font: { size: mainView === 'ambos' ? 13 : 10 }, maxRotation: mainView === 'ambos' ? 0 : 60 } },
+                    y: { stacked: true, grid: { display: false, drawBorder: false }, ticks: { font: { size: 11 } } }
                 }
             }
         });

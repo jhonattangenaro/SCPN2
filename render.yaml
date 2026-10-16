@@ -10,7 +10,8 @@ services:
         value: 3.10.12
       - key: SECRET_KEY
         generateValue: true
-    disk:
-      name: scpn-data
-      mountPath: /data
-      sizeGB: 1
+      # Datos persistentes en Turso (se pegan en el dashboard de Render)
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false

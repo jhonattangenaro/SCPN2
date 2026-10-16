@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 export_bp = Blueprint('export', __name__)
 
 from config import DATABASE
+import database
 
 # Colores institucionales
 AZUL_PRINCIPAL = '#0B3B6E'
@@ -38,8 +39,7 @@ RL_AZUL_SECUNDARIO = colors.HexColor(AZUL_SECUNDARIO)
 RL_AMARILLO = colors.HexColor(AMARILLO)
 
 def _fetch_data(modules=None):
-    db = sqlite3.connect(DATABASE)
-    db.row_factory = sqlite3.Row
+    db = database.connect()
     data = {}
     try:
         if modules is None or 'secretarias' in modules:

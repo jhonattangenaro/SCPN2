@@ -8,6 +8,8 @@ import json
 import os
 import sqlite3
 import time
+import urllib.error
+import urllib.request
 
 from config import DATABASE
 
@@ -68,17 +70,6 @@ class Cursor:
 
 
 # ───────────────────────── Turso por HTTP ─────────────────────────
-_session = None
-
-
-def _get_session():
-    global _session
-    if _session is None:
-        import requests
-        _session = requests.Session()
-    return _session
-
-
 def _enc(v):
     if v is None:
         return {"type": "null"}
@@ -130,29 +121,33 @@ class HttpConnection:
 
     # --- transporte ---
     def _post(self, reqs):
-        sess = _get_session()
-        body = {"baton": self._baton, "requests": reqs}
+        payload = json.dumps({"baton": self._baton, "requests": reqs}).encode('utf-8')
         headers = {"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"}
         intentos = 4 if self._baton is None else 1
         ultimo = None
         for n in range(intentos):
             try:
-                r = sess.post(self._base + "/v2/pipeline", data=json.dumps(body), headers=headers, timeout=60)
-                if r.status_code in (502, 503, 504) and n < intentos - 1:
-                    print(f"[TURSO] HTTP {r.status_code}, reintentando… {r.text[:200]}", flush=True)
+                req = urllib.request.Request(self._base + "/v2/pipeline", data=payload, headers=headers, method="POST")
+                try:
+                    with urllib.request.urlopen(req, timeout=60) as r:
+                        status, text = r.status, r.read().decode('utf-8')
+                except urllib.error.HTTPError as e:          # respuestas 4xx/5xx
+                    status, text = e.code, e.read().decode('utf-8', 'replace')
+                if status in (502, 503, 504) and n < intentos - 1:
+                    print(f"[TURSO] HTTP {status}, reintentando… {text[:200]}", flush=True)
                     time.sleep(1.5 * (n + 1))
                     continue
-                if r.status_code != 200:
-                    print(f"[TURSO] HTTP {r.status_code}: {r.text[:300]}", flush=True)
-                    raise sqlite3.OperationalError(f"Turso respondió HTTP {r.status_code}: {r.text[:200]}")
-                data = r.json()
+                if status != 200:
+                    print(f"[TURSO] HTTP {status}: {text[:300]}", flush=True)
+                    raise sqlite3.OperationalError(f"Turso respondió HTTP {status}: {text[:200]}")
+                data = json.loads(text)
                 self._baton = data.get("baton")
                 if data.get("base_url"):
                     self._base = data["base_url"].rstrip('/')
                 return data.get("results", [])
             except sqlite3.OperationalError:
                 raise
-            except Exception as e:                       # red / DNS / timeout
+            except Exception as e:                           # red / DNS / timeout
                 ultimo = e
                 print(f"[TURSO] error de red: {e}", flush=True)
                 if n < intentos - 1:

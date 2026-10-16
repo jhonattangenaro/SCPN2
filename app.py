@@ -816,11 +816,13 @@ def importar_respaldo():
                 col_names = ','.join(f'"{c}"' for c in cols)
                 una = '(' + ','.join('?' * len(cols)) + ')'
                 por_lote = max(1, 900 // len(cols))        # límite de variables por sentencia
-                # Inserciones de varias filas por sentencia: pocas idas y vueltas (importante con Turso)
+                # Varias filas por sentencia y varias sentencias por viaje (importante con Turso)
+                stmts = []
                 for i in range(0, len(valores), por_lote):
                     chunk = valores[i:i + por_lote]
                     params = [v for fila in chunk for v in fila]
-                    conn.execute(f"{verbo} INTO {tabla} ({col_names}) VALUES " + ','.join([una] * len(chunk)), params)
+                    stmts.append((f"{verbo} INTO {tabla} ({col_names}) VALUES " + ','.join([una] * len(chunk)), params))
+                conn.batch(stmts)
                 insertados += len(valores)
             totales[tabla] = insertados
 
